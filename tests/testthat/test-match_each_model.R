@@ -16,26 +16,62 @@ reference_matchit <- function(replace, caliper = NULL) {
                    caliper = caliper)
 }
 
+# Pairs that differ from MatchIt's are allowed only as near-tie swaps: the treated patient is
+# equally far, within `tolerance` on MatchIt's logit, from our partner and from MatchIt's.
+# Such ties are broken by the last bits of floating-point arithmetic, which differ between
+# compilers (for example NSW71, halfway between PSID392 and PSID400 in lalonde).
+near_tie_swaps <- function(control_id, reference, tolerance = 1e-8) {
+  # nolint next: object_usage_linter. `lalonde` is loaded by data() at the top of this file.
+  logit <- stats::setNames(as.numeric(reference$distance), rownames(lalonde))
+  treated_id <- rownames(reference$match.matrix)
+  expected <- unname(reference$match.matrix[, 1])
+  differ <- which(is.na(control_id) != is.na(expected) |
+                    (!is.na(control_id) & !is.na(expected) & control_id != expected))
+  gap <- abs(abs(logit[treated_id[differ]] - logit[control_id[differ]]) -
+               abs(logit[treated_id[differ]] - logit[expected[differ]]))
+  list(rows = differ, all_near_ties = !anyNA(gap) && all(gap <= tolerance),
+       controls = unique(c(control_id[differ], expected[differ])))
+}
+
 test_that("1. reproduction: the same pairs and weights as MatchIt's own glm match", {
   for (replace in c(FALSE, TRUE)) {
     ours <- match_each_model(logistic_set, lalonde, replace = replace)
     reference <- reference_matchit(replace)
     pairs <- ours$matches$logistic_regression_1
     expect_identical(pairs$treated_id, rownames(reference$match.matrix))
-    expect_identical(pairs$control_id, unname(reference$match.matrix[, 1]))
+    # Identical pairs, except near-tie swaps, and at most two of them.
+    swaps <- near_tie_swaps(pairs$control_id, reference)
+    expect_true(swaps$all_near_ties)
+    expect_lte(length(swaps$rows), 2)
+    # Weights identical, except for the controls of a near-tie swap.
+    unaffected <- !rownames(lalonde) %in% swaps$controls
     if (!replace) {
-      expect_equal(unname(ours$weights[, 1]), unname(reference$weights))
+      expect_equal(unname(ours$weights[unaffected, 1]), unname(reference$weights[unaffected]))
     } else {
       # MatchIt normalizes control weights to a mean of 1 by default; ours are the raw counts
       # (normalize = FALSE), so the control weights are proportional.
-      ours_control <- ours$weights[!treated_lalonde, 1]
-      reference_control <- reference$weights[!treated_lalonde]
-      expect_equal(unname(ours_control / sum(ours_control)),
-                   unname(reference_control / sum(reference_control)))
+      kept <- !treated_lalonde & unaffected
+      ours_control <- ours$weights[kept, 1]
+      reference_control <- reference$weights[kept]
+      expect_equal(unname(ours_control * sum(reference_control) / sum(ours_control)),
+                   unname(reference_control))
       expect_equal(unname(ours$weights[treated_lalonde, 1]),
                    unname(reference$weights[treated_lalonde]))
     }
   }
+})
+
+test_that("1b. the near-tie rule accepts the NSW71 swap and rejects any other change", {
+  reference <- reference_matchit(TRUE)
+  control_id <- unname(reference$match.matrix[, 1])
+  expect_identical(near_tie_swaps(control_id, reference)$rows, integer(0))
+  row <- which(rownames(reference$match.matrix) == "NSW71")
+  other <- setdiff(c("PSID392", "PSID400"), control_id[row])
+  tie_swapped <- replace(control_id, row, other)
+  expect_true(near_tie_swaps(tie_swapped, reference)$all_near_ties)
+  expect_setequal(near_tie_swaps(tie_swapped, reference)$controls, c("PSID392", "PSID400"))
+  far_swapped <- replace(control_id, row, "PSID1")
+  expect_false(near_tie_swaps(far_swapped, reference)$all_near_ties)
 })
 
 test_that("2. without replacement: every treated matched once; a caliper drops treated", {
