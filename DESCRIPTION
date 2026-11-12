@@ -2,6 +2,7 @@ Package: propsens
 Type: Package
 Title: Propensity Model Sensitivity Diagnostics for Matched Studies
 Version: 0.1.0
+Date: 2026-11-12
 Authors@R: person(given = "Mostafa M.", family = "Abbas",
                   email = "mostafa.mn.abbas@gmail.com", role = c("aut", "cre", "cph"))
 Description: Outcome-free diagnostics of how much a matched design depends
@@ -39,7 +40,8 @@ Suggests:
     glmnet,
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    spelling
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
