@@ -1,18 +1,10 @@
 # Propensity model sensitivity of a matched design
 
-The one-call diagnostic. It refits the propensity model with every
-algorithm of the model set, re-matches with the analyst's matching
-options, applies the quality gate, and reports rank disagreement (the
-primary summary), pair instability (the second summary of the same gated
-set: 1 minus the pair recurrence across models; exploratory), the
-bootstrap rank instability of the logistic model, control spread and
-pair recurrence, and study-level balance spread. No outcome is used.
-Rank disagreement is a study-level diagnostic; read it for the study as
-a whole, not per patient. The diagnostics are evaluated in a manuscript
-in preparation. When fewer than two models pass the quality gate,
-[`print()`](https://rdrr.io/r/base/print.html) and
-[`summary()`](https://rdrr.io/r/base/summary.html) say so first: the
-diagnostic is then outside the setting where it was evaluated.
+How much does a matched design depend on which of several similarly good
+propensity models is used? The function refits the propensity model with
+every algorithm of the model set, repeats the analyst's matching with
+each model, keeps the models that pass a quality gate (the kept models),
+and describes how much the kept models disagree. No outcome is used.
 
 ## Usage
 
@@ -36,7 +28,9 @@ propensity_sensitivity(
   m_order = "largest",
   caliper = NULL,
   cores = 1,
-  seed = 1
+  seed = 1,
+  min_treated_kept = NULL,
+  clip_bootstrap = FALSE
 )
 
 # S3 method for class 'propensity_sensitivity'
@@ -60,7 +54,9 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
   [`MatchIt::matchit()`](https://kosukeimai.github.io/MatchIt/reference/matchit.html))
   or a two-sided formula such as `treat ~ x1 + x2`. Only baseline
   covariates belong in the formula; exclude outcomes, identifiers and
-  post-treatment variables (for example, `treat ~ . - death - id`).
+  post-treatment variables (for example, `treat ~ . - death - id`). The
+  treatment may be numeric 0/1, logical or a two-level factor (see
+  [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)).
 
 - data:
 
@@ -69,17 +65,21 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 
 - algorithms:
 
-  The propensity model set. The default is the set evaluated in a
-  manuscript in preparation: logistic regression, BART and the GRF
-  probability forest (with the default `seeds`, three seeds for each
-  tree algorithm: seven models; packages 'dbarts' and 'grf'). A faster
-  set is available with
-  `algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`;
-  it is not part of that evaluation. See
+  The propensity model set. The default is logistic regression, BART and
+  the GRF probability forest (with the default `seeds`, three seeds for
+  each tree algorithm: seven models; packages 'dbarts' and 'grf'). A
+  faster set is available with
+  `algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`
+  (packages 'randomForest' and 'gbm'); it has been studied less. See
   [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
   for every option and the fixed settings.
 
-- seeds, folds, cross_fit, n_trees, quality_tolerance:
+- seeds:
+
+  `1:k`, the number of seeds per tree algorithm (default `1:3`). Only
+  the number is used; set the randomness with `seed`.
+
+- folds, cross_fit, n_trees, quality_tolerance:
 
   Passed to
   [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md).
@@ -107,8 +107,8 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 - bootstrap_samples:
 
   Number of logistic bootstrap refits, for the bootstrap rank
-  instability and the bootstrap pair recurrence (default 20; 0 for
-  none).
+  instability and the bootstrap pair recurrence: 0 for none, otherwise
+  at least 2 (default 20).
 
 - covariates:
 
@@ -119,7 +119,8 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
   of the formula's right-hand side, from `data`, resolved with R's
   formula rules: `.` means every other column and exclusions such as
   `- death` are respected; `I(age^2)` gives `age`, `age:diabetes` gives
-  `age` and `diabetes`.
+  `age` and `diabetes`. Character columns are an error (convert them to
+  factors).
 
 - replace, m_order, caliper:
 
@@ -130,11 +131,29 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 
 - cores:
 
-  Number of cores (default 1).
+  Number of cores (default 1). Run time grows with the number of
+  patients and covariates (about a minute for 614 patients and 7
+  covariates; about 16 minutes for 5,735 patients and 50 covariates on
+  one core); on Unix, `cores` runs the models in parallel.
 
 - seed:
 
-  Integer seed from which every other seed is derived.
+  Integer seed from which every other seed is derived (fold split,
+  models, bootstrap). See the section "Seeds".
+
+- min_treated_kept:
+
+  `NULL` (default, off) or a share between 0 and 1: with a caliper, a
+  model that keeps a smaller share of the treated patients fails the
+  quality gate and is left out before the relative balance limit is
+  computed.
+
+- clip_bootstrap:
+
+  `FALSE` (default) or `TRUE`: clip the bootstrap refits' scores to
+  `[0.001, 0.999]` as the cross-fitted scores are. The default keeps the
+  method as it was studied; see
+  [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md).
 
 - digits:
 
@@ -154,41 +173,81 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 
 ## Value
 
-An object of class `"propensity_sensitivity"`: a list with `patients`
-(one row per patient: `id`, `treated`, `rank_disagreement`,
-`rank_disagreement_between`, `rank_disagreement_within`,
-`logit_disagreement`, `control_spread`, `control_spread_scaled`,
-`pair_recurrence_models`, `pair_recurrence_bootstrap`,
-`outside_support`, `logistic_score`; the treated-only measures are `NA`
-for untreated patients), `models` (one row per model plus the reference
-row), `summary` (a table of the study-level numbers with and without the
-gate, plus flags), `quality_gate_left_fewer_than_two_models`,
-`balance_spread` (spread tables with and without the gate),
-`bootstrap_rank_instability` (see
-[`bootstrap_rank_instability()`](https://mostafa-abbas.github.io/propsens/reference/bootstrap_rank_instability.md);
-`NULL` without bootstrap refits; its study-level value is also the row
-`bootstrap_rank_instability_treated` of the summary table; the summary
-table also has `pair_instability_models_mean_treated`, 1 minus
-`pair_recurrence_models_mean_treated`), `settings` and `components` (the
-model set and the match set). `components$model_set` is the fitted
-[`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
-object, with every model's cross-fitted `probability`, `logit` and
-`rank`, so that its scores can be reused (for example in another
-estimator) without refitting; `summary$models_used` names the models in
-use.
+An object of class `"propensity_sensitivity"`: a list with
+
+- `patients`: one row per patient (`id`, `treated`, `rank_disagreement`,
+  `rank_disagreement_between`, `rank_disagreement_within`,
+  `logit_disagreement`, `control_spread`, `control_spread_scaled`,
+  `pair_recurrence_models`, `pair_recurrence_bootstrap`,
+  `outside_support`, `logistic_score`; the treated-only measures are
+  `NA` for untreated patients). These columns describe the spread over
+  patients; they are not per-patient flags.
+
+- `models`: one row per model (fit, balance, `treated_kept`, the gate
+  columns, `in_use` = kept, `gate_note`), plus the row of your own model
+  for a `matchit` object.
+
+- `summary`: a list with `table` (the study-level numbers with the gate,
+  `with_gate`, and without it, `without_gate`),
+  `quality_gate_left_fewer_than_two_models`, `reference_model_not_kept`,
+  `models_used` (the kept models), `kept_algorithms`,
+  `kept_algorithms_count`, `kept_models_one_algorithm`,
+  `pair_recurrence_floor_models`, `pair_instability_maximum` and
+  `pair_recurrence_expected_ceiling_bootstrap_uncorrected`.
+
+- `quality_gate_left_fewer_than_two_models` and `kept_algorithms_count`
+  (also at the top level, for scripts).
+
+- `balance_spread`: spread tables with and without the gate.
+
+- `bootstrap_rank_instability`: see
+  [`bootstrap_rank_instability()`](https://mostafa-abbas.github.io/propsens/reference/bootstrap_rank_instability.md);
+  `NULL` without bootstrap refits.
+
+- `settings` and `components` (`model_set`, the fitted
+  [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
+  object with every model's cross-fitted `probability`, `logit` and
+  `rank`, so that the scores can be reused without refitting; and
+  `match_set`).
+
+## Details
+
+Every summary is study-level: read it for the study as a whole. Rank
+disagreement is the primary summary. Pair instability, rank disagreement
+with equal weight per algorithm and the between/within-algorithm ratio
+are exploratory. Bootstrap rank instability, balance spread and control
+spread are descriptive. The per-patient columns of `patients` (and of
+[`as.data.frame()`](https://rdrr.io/r/base/as.data.frame.html)) describe
+how the disagreement is spread over the patients; they are not flags for
+individual patients. No thresholds for a "large" value exist yet.
+
+These diagnostics have been studied in the author's simulations and
+benchmark analyses; a methods paper is in preparation. No peer-reviewed
+evaluation exists yet.
+
+Two situations raise an R warning and a block in
+[`print()`](https://rdrr.io/r/base/print.html) and
+[`summary()`](https://rdrr.io/r/base/summary.html): fewer than two
+models pass the quality gate (every model is then used, so there is no
+set of similarly good models to compare), and the kept models are seeds
+of a single algorithm (rank disagreement and pair instability then
+measure seed noise within that algorithm).
 
 ## Steps
 
-1.  [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
+1.  All arguments, the treatment and the covariates are checked before
+    any model is fitted.
+
+2.  [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
     with the formula (cross-fitted scores by default).
 
-2.  [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md)
+3.  [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md)
     with the matching options and the logistic bootstrap block.
 
-3.  [`balance_spread()`](https://mostafa-abbas.github.io/propsens/reference/balance_spread.md)
+4.  [`balance_spread()`](https://mostafa-abbas.github.io/propsens/reference/balance_spread.md)
     for every model.
 
-4.  Final quality gate:
+5.  Quality gate:
     `passed_quality_gate = passed_logloss_gate & smd_max_main <= balance_limit`.
     With the default `balance_rule = "relative"` the limit is the
     smallest max \|SMD\| on main terms among the refitted models plus
@@ -198,15 +257,59 @@ use.
     best model's value plus `balance_margin`, without the cap; use it as
     a sensitivity analysis when the cap excludes every model (many
     covariates). With `balance_rule = "absolute"` the limit is
-    `balance_threshold` (0.10). If fewer than two models pass, every
-    model is used and `quality_gate_left_fewer_than_two_models` is
-    `TRUE` (applied to the final set).
+    `balance_threshold` (0.10). With `min_treated_kept` set (off by
+    default), a model that keeps a smaller share of the treated patients
+    fails the gate and does not enter the best-model value of the
+    relative rule. If fewer than two models pass, every model is used
+    and `quality_gate_left_fewer_than_two_models` is `TRUE`.
 
-5.  [`rank_disagreement()`](https://mostafa-abbas.github.io/propsens/reference/rank_disagreement.md),
+6.  [`rank_disagreement()`](https://mostafa-abbas.github.io/propsens/reference/rank_disagreement.md),
     [`control_spread()`](https://mostafa-abbas.github.io/propsens/reference/control_spread.md),
     [`pair_recurrence()`](https://mostafa-abbas.github.io/propsens/reference/pair_recurrence.md)
-    and the balance spread on the final set (`summary` column
+    and the balance spread on the kept models (`summary` column
     `with_gate`) and on every model (`without_gate`).
+
+## Seeds
+
+The fold split and every tree model depend on `seed`. On small data the
+kept models and every summary can change noticeably with `seed` (on
+lalonde, rank disagreement varied several-fold between seeds). Rerun
+with two or three values of `seed` and report all of them;
+[`seed_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/seed_sensitivity.md)
+does this. Rank disagreement is a standard deviation over the kept
+models, so it also depends on how many seeds each kept algorithm
+contributes; "rank disagreement, equal weight per algorithm" counts each
+algorithm once.
+
+## What the summaries compare under a caliper
+
+With a caliper each model keeps a different subset of the treated
+patients, shown by [`print()`](https://rdrr.io/r/base/print.html) for
+each kept model. The standardized mean differences compare the matched
+treated patients with their matched untreated partners; the energy
+distance (`cobalt::bal.init(estimand = "ATT")`) also measures the
+distance to the whole treated group, so it also grows when treated
+patients are dropped. Rank disagreement averages over all treated
+patients, matched or not; pair instability and control spread use the
+treated patients matched by at least one kept model. The gate does not
+look at the share of treated kept unless `min_treated_kept` is set: a
+model that keeps few treated patients can reach an easy balance and then
+set the relative limit for the others.
+
+## Estimand
+
+Matching is 1:1 nearest-neighbour on the logit of each model's score,
+for the average treatment effect in the treated (ATT). Without
+replacement (the default of the formula interface and the more common
+applied choice) the result depends on the matching order, and late
+matches can be poor when untreated patients are not much more numerous
+than treated ones, so the matched estimate can keep some bias for the
+ATT. With replacement every treated patient gets its nearest untreated
+patient; under overlap and a correctly specified propensity model this
+targets the ATT, at the price of reused untreated patients and a
+variance that must account for it. With a caliper, treated patients
+without an eligible partner are dropped and the estimand is the effect
+in the retained treated patients, not the ATT.
 
 ## Reading a matchit object
 
@@ -215,25 +318,26 @@ From a `matchit` object the function reads the formula, the method,
 ATT with a propensity score is `"largest"`) and the caliper. Only 1:1
 nearest-neighbour matching on a propensity score for the ATT is
 supported, with or without replacement and with or without a caliper on
-the score; anything else stops with a clear error. MatchIt applies a
-caliper in standard deviations of the analyst's distance (over all
-patients); the same number of standard deviations is applied to the
-logit of every model here. When `data` is `NULL` the data is found by
-evaluating the object's `data` argument in the calling frame.
+the score; anything else (including `exact`, `mahvars`, `antiexact`,
+`s.weights`, `reuse.max`, `unit.id` and calipers on covariates) stops
+with a clear error. MatchIt applies a caliper in standard deviations of
+the analyst's distance (over all patients); the same number of standard
+deviations is applied to the logit of every model here. When `data` is
+`NULL` the data is found by evaluating the object's `data` argument in
+the calling frame.
 
-## Reference model
+## Your own model
 
-The analyst's own score (`x$distance`) is kept as the reference model,
-an extra row of `models` with `model_id = "reference"`. Its ranks come
-from `x$distance` (ranks do not depend on the scale) and its balance
-statistics from `x$weights`. Its log-loss, Brier score and c-statistic
-are `NA`: it is an in-sample score from the user's object and is not
-comparable with the cross-fitted scores. Its quality gate is judged on
-balance only; when it fails, the row is flagged "reference model outside
-the equally-reasonable set". It is never one of the models in use.
-`summary` reports its mean absolute rank difference from the models in
-use, over treated patients: the mean over treated `i` and models `m` of
-`|r_ref(i) - r_m(i)|`.
+The analyst's own score (`x$distance`) is kept as an extra row of
+`models` with `model_id = "reference"`. Its ranks come from `x$distance`
+(ranks do not depend on the scale) and its balance statistics from
+`x$weights`. Its log-loss, Brier score and c-statistic are `NA`: it is
+an in-sample score from the user's object and is not comparable with the
+cross-fitted scores. It is judged on balance only, as "within the
+balance limit" or "above the balance limit"; it is never one of the
+models compared, so it is never "kept". `summary` reports its mean
+absolute rank difference from the kept models, over treated patients:
+the mean over treated `i` and models `m` of `|r_ref(i) - r_m(i)|`.
 
 ## Examples
 
@@ -247,59 +351,104 @@ sensitivity <- propensity_sensitivity(
   matched, algorithms = c("logistic_regression", "random_forest", "gradient_boosting"),
   seeds = 1, n_trees = 100, bootstrap_samples = 5
 )
+#> Warning: Fewer than two models passed the quality gate, so there is no set of similarly good models to compare. Every model is used below; read the values as a description of all models, not of a kept set.
 sensitivity
 #> Propensity model sensitivity
-#> WARNING: fewer than two models passed the quality gate; the diagnostic is outside the setting where it was evaluated.
-#> Every model is used below, so the values do not describe a set of equally good models. Do not read them as a validated result.
-#> 1. Quality gate: 3 of 3 models in use (3 algorithms: logistic regression, random forest, gradient boosting); log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and <= 0.25, limit here 0.25
+#> WARNING: fewer than two models passed the quality gate, so there is no set of
+#> similarly good models to compare. Every model is used below; read the values
+#> as a description of all models, not of a kept set.
+#> 1. Quality gate: 3 of 3 models in use (3 algorithms: logistic regression,
+#>    random forest, gradient boosting); log-loss within 5 % of the best;
+#>    relative balance rule: max |SMD| main terms at most 0.10 above the best
+#>    model's and at most 0.25 (limit here 0.25).
 #>    Fewer than two models passed, so every model is used. Failed:
-#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      gradient_boosting_1: max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#> 2. Rank disagreement (study mean over treated): 0.0687; median between/within ratio NA (exploratory; near 1 = seed noise)
-#>    Pair instability across the models in use (study mean over treated; exploratory): 0.6
-#>    Bootstrap rank instability of the logistic model (study mean over treated): 0.0361
-#> 3. Balance spread (range of max |SMD| main terms across the models in use): 0.125 (0.16 to 0.285)
-#> Mean scaled control spread over treated (descriptive): 1.19 (1 = controls differ as much as a typical match differs from its treated patient)
-#> Treated kept: 100 % (lowest model in use)
-#> Reference model (glm, linear.logit): passes the balance gate; mean absolute rank difference from the models in use: 0.0766
+#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max
+#>        |SMD| main terms more than balance_margin above the best model's or
+#>        above balance_cap
+#>      gradient_boosting_1: max |SMD| main terms more than balance_margin above
+#>        the best model's or above balance_cap
+#>    Treated patients kept by each model: logistic_regression_1 100 %,
+#>      random_forest_1 100 %, gradient_boosting_1 100 %
+#> 2. Rank disagreement (primary; study mean over treated): 0.0687
+#>    Equal weight per algorithm (exploratory): 0.0687
+#>    Between/within-algorithm ratio (exploratory; median over treated): NA
+#>    Pair instability (exploratory; study mean over treated): 0.6 of a possible
+#>      0.667 with 3 models. It is high whenever many untreated patients have
+#>      similar scores, even when the models agree.
+#>    Bootstrap rank instability of the logistic model (descriptive): 0.0361
+#> 3. Balance spread (descriptive; range of max |SMD| main terms over the models
+#>    in use): 0.125 (0.16 to 0.285)
+#> Control spread (descriptive; mean scaled over treated): 1.19; 1 = the partners
+#>    chosen by different models differ as much as a typical matched pair (scale:
+#>    the matches of logistic_regression_1)
+#> Your own model (glm, linear.logit): within the balance limit (judged on
+#>    balance only; it is not one of the compared models); mean absolute rank
+#>    difference from the models in use: 0.0766
+#> Matching: 1:1 nearest neighbour on the logit, with replacement, order
+#>    "largest", caliper none; target: ATT.
 summary(sensitivity)
-#> WARNING: fewer than two models passed the quality gate; the diagnostic is outside the setting where it was evaluated.
-#> Every model is used below, so the values do not describe a set of equally good models. Do not read them as a validated result.
-#> 1. Quality gate: 3 of 3 models in use (3 algorithms: logistic regression, random forest, gradient boosting); log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and <= 0.25, limit here 0.25
+#> Propensity model sensitivity: summary
+#> WARNING: fewer than two models passed the quality gate, so there is no set of
+#> similarly good models to compare. Every model is used below; read the values
+#> as a description of all models, not of a kept set.
+#> 1. Quality gate: 3 of 3 models in use (3 algorithms: logistic regression,
+#>    random forest, gradient boosting); log-loss within 5 % of the best;
+#>    relative balance rule: max |SMD| main terms at most 0.10 above the best
+#>    model's and at most 0.25 (limit here 0.25).
 #>    Fewer than two models passed, so every model is used. Failed:
-#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      gradient_boosting_1: max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#> 2. Rank disagreement (study mean over treated): 0.0687; median between/within ratio NA (exploratory; near 1 = seed noise)
-#>    Pair instability across the models in use (study mean over treated; exploratory): 0.6
-#>    Bootstrap rank instability of the logistic model (study mean over treated): 0.0361
-#> 3. Balance spread (range of max |SMD| main terms across the models in use): 0.125 (0.16 to 0.285)
+#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max
+#>        |SMD| main terms more than balance_margin above the best model's or
+#>        above balance_cap
+#>      gradient_boosting_1: max |SMD| main terms more than balance_margin above
+#>        the best model's or above balance_cap
+#>    Treated patients kept by each model: logistic_regression_1 100 %,
+#>      random_forest_1 100 %, gradient_boosting_1 100 %
+#> 2. Rank disagreement (primary; study mean over treated): 0.0687
+#>    Equal weight per algorithm (exploratory): 0.0687
+#>    Between/within-algorithm ratio (exploratory; median over treated): NA
+#>    Pair instability (exploratory; study mean over treated): 0.6 of a possible
+#>      0.667 with 3 models. It is high whenever many untreated patients have
+#>      similar scores, even when the models agree.
+#>    Bootstrap rank instability of the logistic model (descriptive): 0.0361
+#> 3. Balance spread (descriptive; range of max |SMD| main terms over the models
+#>    in use): 0.125 (0.16 to 0.285)
+#> Control spread (descriptive; mean scaled over treated): 1.19; 1 = the partners
+#>    chosen by different models differ as much as a typical matched pair (scale:
+#>    the matches of logistic_regression_1)
+#> Your own model (glm, linear.logit): within the balance limit (judged on
+#>    balance only; it is not one of the compared models); mean absolute rank
+#>    difference from the models in use: 0.0766
+#> Matching: 1:1 nearest neighbour on the logit, with replacement, order
+#>    "largest", caliper none; target: ATT.
 #> 
-#> Study-level numbers (with the quality gate / without it):
-#>                                         quantity with_gate without_gate
-#>                            number_of_models_used    3.0000       3.0000
-#>                   mean_rank_disagreement_treated    0.0687       0.0687
-#>                       mean_rank_disagreement_all    0.0768       0.0768
-#>              median_between_within_ratio_treated        NA           NA
-#>                  mean_logit_disagreement_treated    0.7330       0.7330
-#>               mean_control_spread_scaled_treated    1.1900       1.1900
-#>                p90_control_spread_scaled_treated    1.8400       1.8400
-#>                               smd_max_main_range    0.1250       0.1250
-#>                                  smd_max_main_sd    0.0686       0.0686
-#>                           smd_max_extended_range    0.2150       0.2150
-#>                              smd_max_extended_sd    0.1080       0.1080
-#>                            energy_distance_range    0.0398       0.0398
-#>                               energy_distance_sd    0.0213       0.0213
-#>                                     ks_max_range    0.2220       0.2220
-#>                                        ks_max_sd    0.1260       0.1260
-#>              pair_recurrence_models_mean_treated    0.4000       0.4000
-#>             pair_instability_models_mean_treated    0.6000       0.6000
-#>           pair_recurrence_bootstrap_mean_treated    0.6200       0.6200
-#>                               treated_kept_share    1.0000       1.0000
-#>                           treated_kept_share_min    1.0000       1.0000
-#>               bootstrap_rank_instability_treated    0.0361       0.0361
-#>  reference_mean_absolute_rank_difference_treated    0.0766       0.0766
+#> Study-level numbers (every model is used, so one column):
+#>  quantity                                        label       value 
+#>  number_of_models_used                           count       3     
+#>  mean_rank_disagreement_treated                  primary     0.0687
+#>  mean_rank_disagreement_equal_weight_treated     exploratory 0.0687
+#>  mean_rank_disagreement_all                      descriptive 0.0768
+#>  median_between_within_ratio_treated             exploratory NA    
+#>  mean_logit_disagreement_treated                 descriptive 0.733 
+#>  mean_control_spread_scaled_treated              descriptive 1.19  
+#>  p90_control_spread_scaled_treated               descriptive 1.84  
+#>  smd_max_main_range                              descriptive 0.125 
+#>  smd_max_main_sd                                 descriptive 0.0686
+#>  smd_max_extended_range                          descriptive 0.215 
+#>  smd_max_extended_sd                             descriptive 0.108 
+#>  energy_distance_range                           descriptive 0.0398
+#>  energy_distance_sd                              descriptive 0.0213
+#>  ks_max_range                                    descriptive 0.222 
+#>  ks_max_sd                                       descriptive 0.126 
+#>  pair_recurrence_models_mean_treated             descriptive 0.4   
+#>  pair_instability_models_mean_treated            exploratory 0.6   
+#>  pair_recurrence_bootstrap_mean_treated          descriptive 0.62  
+#>  treated_kept_share                              descriptive 1     
+#>  treated_kept_share_min                          descriptive 1     
+#>  bootstrap_rank_instability_treated              descriptive 0.0361
+#>  reference_mean_absolute_rank_difference_treated descriptive 0.0766
 #> 
-#> Models:
+#> Models (in_use = kept by the quality gate; for your own model, the row
+#> `reference`, passed_quality_gate means within the balance limit):
 #>               model_id                     algorithm logloss smd_max_main
 #>  logistic_regression_1           logistic_regression   0.412        0.271
 #>        random_forest_1                 random_forest   0.363        0.160
@@ -315,14 +464,24 @@ summary(sensitivity)
 #>    TRUE
 #>    TRUE
 #>   FALSE
-#>                                                                                                                                                                            gate_note
-#>  log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap; used anyway: fewer than two models passed
-#>                                                                                                                                                                               passed
-#>                                                 max |SMD| main terms more than balance_margin above the best model's or above balance_cap; used anyway: fewer than two models passed
-#>                                                                  in-sample score from the user's object, not comparable (log-loss not computed); gate judged on balance only: passed
 #> 
-#> Quality gate: log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and <= 0.25, limit here 0.25
-#> Matching: 1:1 nearest neighbour on the logit, ATT, with replacement, order "largest", caliper none
+#> Gate notes:
+#>   logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max
+#>       |SMD| main terms more than balance_margin above the best model's or
+#>       above balance_cap; used anyway: fewer than two models passed
+#>   random_forest_1: passed
+#>   gradient_boosting_1: max |SMD| main terms more than balance_margin above the
+#>       best model's or above balance_cap; used anyway: fewer than two models
+#>       passed
+#>   reference: your own model: an in-sample score from the matchit object, so
+#>       its log-loss is not comparable and not computed; judged on balance only:
+#>       within the balance limit; never one of the compared models
+#> 
+#> Quality gate: log-loss within 5 % of the best; relative balance rule: max
+#>    |SMD| main terms at most 0.10 above the best model's and at most 0.25
+#>    (limit here 0.25).
+#> Matching: 1:1 nearest neighbour on the logit, with replacement, order
+#>    "largest", caliper none; target: ATT.
 head(as.data.frame(sensitivity))
 #>     id treated rank_disagreement rank_disagreement_between
 #> 1 NSW1       1        0.04782657                0.04782657
@@ -353,26 +512,45 @@ head(as.data.frame(sensitivity))
 #> 5           FALSE      0.8807265
 #> 6           FALSE      0.9013876
 # \donttest{
-# The defaults: logistic regression, BART x 3, GRF probability forest x 3 (about a minute).
-propensity_sensitivity(matched)
+# The default model set with one seed per tree algorithm (three models), to keep the example
+# short; an analysis uses the default seeds = 1:3 (seven models, about a minute here).
+propensity_sensitivity(matched, seeds = 1, bootstrap_samples = 5)
+#> Warning: Fewer than two models passed the quality gate, so there is no set of similarly good models to compare. Every model is used below; read the values as a description of all models, not of a kept set.
 #> Propensity model sensitivity
-#> WARNING: fewer than two models passed the quality gate; the diagnostic is outside the setting where it was evaluated.
-#> Every model is used below, so the values do not describe a set of equally good models. Do not read them as a validated result.
-#> 1. Quality gate: 7 of 7 models in use (3 algorithms: logistic regression, BART, GRF); log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and <= 0.25, limit here 0.25
+#> WARNING: fewer than two models passed the quality gate, so there is no set of
+#> similarly good models to compare. Every model is used below; read the values
+#> as a description of all models, not of a kept set.
+#> 1. Quality gate: 3 of 3 models in use (3 algorithms: logistic regression,
+#>    BART, GRF); log-loss within 5 % of the best; relative balance rule: max
+#>    |SMD| main terms at most 0.10 above the best model's and at most 0.25
+#>    (limit here 0.25).
 #>    Fewer than two models passed, so every model is used. Failed:
-#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      bart_1: max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      bart_2: max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      bart_3: max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      grf_probability_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      grf_probability_2: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#>      grf_probability_3: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap
-#> 2. Rank disagreement (study mean over treated): 0.0493; median between/within ratio 10.1 (exploratory; near 1 = seed noise)
-#>    Pair instability across the models in use (study mean over treated; exploratory): 0.659
-#>    Bootstrap rank instability of the logistic model (study mean over treated): 0.0462
-#> 3. Balance spread (range of max |SMD| main terms across the models in use): 0.297 (0.262 to 0.559)
-#> Mean scaled control spread over treated (descriptive): 1.24 (1 = controls differ as much as a typical match differs from its treated patient)
-#> Treated kept: 100 % (lowest model in use)
-#> Reference model (glm, linear.logit): passes the balance gate; mean absolute rank difference from the models in use: 0.0903
+#>      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max
+#>        |SMD| main terms more than balance_margin above the best model's or
+#>        above balance_cap
+#>      bart_1: max |SMD| main terms more than balance_margin above the best
+#>        model's or above balance_cap
+#>      grf_probability_1: log-loss above (1 + quality_tolerance) x best; max
+#>        |SMD| main terms more than balance_margin above the best model's or
+#>        above balance_cap
+#>    Treated patients kept by each model: logistic_regression_1 100 %, bart_1
+#>      100 %, grf_probability_1 100 %
+#> 2. Rank disagreement (primary; study mean over treated): 0.0669
+#>    Equal weight per algorithm (exploratory): 0.0669
+#>    Between/within-algorithm ratio (exploratory; median over treated): NA
+#>    Pair instability (exploratory; study mean over treated): 0.611 of a
+#>      possible 0.667 with 3 models. It is high whenever many untreated patients
+#>      have similar scores, even when the models agree.
+#>    Bootstrap rank instability of the logistic model (descriptive): 0.0361
+#> 3. Balance spread (descriptive; range of max |SMD| main terms over the models
+#>    in use): 0.145 (0.271 to 0.416)
+#> Control spread (descriptive; mean scaled over treated): 1.22; 1 = the partners
+#>    chosen by different models differ as much as a typical matched pair (scale:
+#>    the matches of logistic_regression_1)
+#> Your own model (glm, linear.logit): within the balance limit (judged on
+#>    balance only; it is not one of the compared models); mean absolute rank
+#>    difference from the models in use: 0.0747
+#> Matching: 1:1 nearest neighbour on the logit, with replacement, order
+#>    "largest", caliper none; target: ATT.
 # }
 ```

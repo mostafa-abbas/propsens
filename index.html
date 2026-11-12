@@ -10,8 +10,8 @@
 <script src="deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Propensity Model Sensitivity Diagnostics for Matched Studies">
-<meta name="description" content="Outcome-free diagnostics that measure how much a matched study depends on the choice of propensity model. Logistic regression, Bayesian additive regression trees and a generalized random forest are each used for 1:1 nearest-neighbour matching with cross-fitted scores; the package reports study-level rank disagreement, bootstrap rank instability of the logistic model and balance spread across models, applies a quality gate, and reads an existing MatchIt object directly.">
-<meta property="og:description" content="Outcome-free diagnostics that measure how much a matched study depends on the choice of propensity model. Logistic regression, Bayesian additive regression trees and a generalized random forest are each used for 1:1 nearest-neighbour matching with cross-fitted scores; the package reports study-level rank disagreement, bootstrap rank instability of the logistic model and balance spread across models, applies a quality gate, and reads an existing MatchIt object directly.">
+<meta name="description" content="Outcome-free diagnostics of how much a matched design depends on which of several similarly good propensity models is used. Logistic regression, Bayesian additive regression trees and a generalized random forest (cross-fitted scores) are each used for 1:1 nearest-neighbour matching with the analysts settings; a quality gate keeps the models that fit and balance about as well as the best one, and the package reports study-level rank disagreement, pair instability, bootstrap rank instability of the logistic model and balance spread across the kept models. It reads an existing MatchIt object directly. The diagnostics have been studied in the authors simulations; no peer-reviewed evaluation exists yet.">
+<meta property="og:description" content="Outcome-free diagnostics of how much a matched design depends on which of several similarly good propensity models is used. Logistic regression, Bayesian additive regression trees and a generalized random forest (cross-fitted scores) are each used for 1:1 nearest-neighbour matching with the analysts settings; a quality gate keeps the models that fit and balance about as well as the best one, and the package reports study-level rank disagreement, pair instability, bootstrap rank instability of the logistic model and balance spread across the kept models. It reads an existing MatchIt object directly. The diagnostics have been studied in the authors simulations; no peer-reviewed evaluation exists yet.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -58,18 +58,18 @@
 <div class="page-header"><h1 id="propsens">propsens<a class="anchor" aria-label="anchor" href="#propsens"></a>
 </h1></div>
 <blockquote>
-<p><strong>Would another, equally good propensity model have matched the same patients?</strong></p>
+<p><strong>How much does a matched design depend on which of several similarly good propensity models is used?</strong></p>
 </blockquote>
 <p><a href="https://github.com/mostafa-abbas/propsens/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/mostafa-abbas/propsens/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a> <a href="https://opensource.org/licenses/MIT" class="external-link"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a></p>
-<p>A matched study estimates each patient’s propensity score with one model, usually logistic regression, and pairs every treated patient with an untreated patient who has a similar score. Another model that fits the data just as well, such as Bayesian additive regression trees (BART) or a generalized random forest (GRF), can order the patients differently and so pick different partners. propsens measures how much the matched design depends on that choice, <strong>without looking at outcomes</strong>, so it can be run at the design stage, next to the usual balance table.</p>
+<p>A matched study estimates each patient’s propensity score with one model, usually logistic regression, and pairs every treated patient with an untreated patient who has a similar score. Another model that fits the data about as well (in propsens: a log-loss within 5 % of the best model’s and a matched balance within 0.10 of the best), such as Bayesian additive regression trees (BART) or a generalized random forest (GRF), can order the patients differently and so pick different partners. propsens describes how much the matched design depends on that choice, <strong>without looking at outcomes</strong>, so it can be run at the design stage, next to the usual balance table.</p>
 <div class="float">
-<img src="articles/rhc-partners.png" alt="One treated (catheterized) patient on the left, linked to four equally good propensity models (logistic regression and BART with seeds 1, 2 and 3). Each model places the patient at a slightly different percentile rank and pairs the patient with a different untreated patient, A to D."><div class="figcaption">One treated (catheterized) patient on the left, linked to four equally good propensity models (logistic regression and BART with seeds 1, 2 and 3). Each model places the patient at a slightly different percentile rank and pairs the patient with a different untreated patient, A to D.</div>
+<img src="articles/rhc-partners.png" alt="One treated (catheterized) patient on the left, linked to the four kept propensity models (logistic regression and BART with seeds 1, 2 and 3). Each model places the patient at a slightly different percentile rank and pairs the patient with a different untreated patient, A to D."><div class="figcaption">One treated (catheterized) patient on the left, linked to the four kept propensity models (logistic regression and BART with seeds 1, 2 and 3). Each model places the patient at a slightly different percentile rank and pairs the patient with a different untreated patient, A to D.</div>
 </div>
 <div class="section level2">
 <h2 id="propsens-in-one-minute">propsens in one minute<a class="anchor" aria-label="anchor" href="#propsens-in-one-minute"></a>
 </h2>
 <div class="float">
-<img src="articles/img/one-minute.png" alt="Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, compare effects across models."><div class="figcaption">Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, compare effects across models.</div>
+<img src="articles/img/one-minute.png" alt="Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, report effects under every kept model, if planned."><div class="figcaption">Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, report effects under every kept model, if planned.</div>
 </div>
 <table class="table">
 <colgroup>
@@ -83,25 +83,41 @@
 </tr>
 <tr>
 <td><strong>It does</strong></td>
-<td>Fits seven propensity models, keeps those as good as the best (the quality gate), and repeats your matching with each kept model.</td>
+<td>Fits seven propensity models, keeps those that fit and balance about as well as the best one (the quality gate), and repeats your matching with each kept model.</td>
 </tr>
 <tr>
 <td><strong>You get</strong></td>
-<td>The list of kept models; rank disagreement (how much patients’ positions move between kept models); pair instability (how often kept models choose different partners); the balance of each model’s match; a clear warning if fewer than two models pass.</td>
+<td>The list of kept models; rank disagreement (how much patients’ positions move between kept models); pair instability (how often kept models choose different partners); the balance of each model’s match; an R warning if fewer than two models pass, or if the kept models are seeds of one algorithm.</td>
 </tr>
 <tr>
 <td><strong>You use it to</strong></td>
-<td>(1) Report it next to your balance table, at the design stage, before looking at outcomes. (2) If the warning appears, revisit the matching design first. (3) If disagreement is noticeable, report the effect estimate under each kept model as a sensitivity analysis, as in the <a href="https://mostafa-abbas.github.io/propsens/articles/how-it-works.html">heart catheterization example</a>.</td>
+<td>(1) Report it next to your balance table, at the design stage, before looking at outcomes. (2) If a warning appears, revisit the matching design first. (3) Decide before looking at outcomes whether you will report the effect estimate under each kept model, and then report all of them, as in the <a href="https://mostafa-abbas.github.io/propsens/articles/how-it-works.html">heart catheterization example</a>.</td>
 </tr>
 </tbody>
 </table>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Your study data and your matching settings:</span></span>
-<span><span class="fu"><a href="reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">treated</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">sex</span> <span class="op">+</span> <span class="va">diabetes</span>, data <span class="op">=</span> <span class="va">study_data</span>,</span>
-<span>                       replace <span class="op">=</span> <span class="cn">FALSE</span>, caliper <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Or your existing MatchIt object (its matching settings are read from the object):</span></span>
-<span><span class="fu"><a href="reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">matched</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(propsens)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="co"># Replace the placeholders &lt;...&gt; with your own treatment, covariates and data:</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">propensity_sensitivity</span>(<span class="sc">&lt;</span>treatment<span class="sc">&gt;</span> <span class="er">~</span> <span class="er">&lt;</span>covariate <span class="dv">1</span><span class="sc">&gt;</span> <span class="sc">+</span> <span class="er">&lt;</span>covariate <span class="dv">2</span><span class="sc">&gt;</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>                                 <span class="at">data =</span> <span class="sc">&lt;</span>your data frame<span class="sc">&gt;</span>, <span class="at">replace =</span> <span class="cn">FALSE</span>, <span class="at">caliper =</span> <span class="fl">0.2</span>)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="co"># Or give your existing MatchIt object (its matching settings are read from the object):</span></span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>result <span class="ot">&lt;-</span> <span class="fu">propensity_sensitivity</span>(<span class="sc">&lt;</span>your matchit object<span class="sc">&gt;</span>)</span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="example-result-right-heart-catheterization">Example result (right heart catheterization)<a class="anchor" aria-label="anchor" href="#example-result-right-heart-catheterization"></a>
+</h2>
+<p>On the public right heart catheterization data (Connors et al., <em>JAMA</em> 1996; 5,735 patients, 2,184 catheterized), matching 1:1 without replacement with a caliper of 0.2 standard deviations of the logit:</p>
+<ul>
+<li>
+<strong>4 of 7 models were kept by the quality gate</strong>: logistic regression and BART with seeds 1, 2 and 3. The three GRF fits were excluded.</li>
+<li>
+<strong>Rank disagreement was 0.047</strong> (primary summary): the standard deviation of a treated patient’s percentile rank across the four kept models averaged 4.7 points on the 0 to 100 scale. No thresholds for a “large” value exist yet.</li>
+<li>
+<strong>Pair instability was 0.64 of a possible 0.75</strong> with four models (exploratory). This is expected when many untreated patients have similar scores, and it does not by itself mean the matched groups differ; a different partner with the same characteristics is harmless.</li>
+<li>
+<strong>Odds ratios of death within 30 days.</strong> Matching with each kept model gave odds ratios between 1.27 and 1.38, all with wide and overlapping 95 % confidence intervals. The two ends of this range are two BART fits that differ only in their random seed, and each matched sample keeps a different 78 to 82 % of the catheterized patients, so the estimates describe slightly different groups. The example shows that the estimate is not identical across kept models; it does not show how much of the difference is due to the model, to the seed, or to chance. The odds ratios are shown only as an illustration; they are not part of the diagnostic, and a larger disagreement does not by itself mean a larger change in the estimate.</li>
+</ul>
+<p>The <a href="https://mostafa-abbas.github.io/propsens/articles/how-it-works.html">step-by-step article</a> walks through this example.</p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
@@ -109,10 +125,8 @@
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"mostafa-abbas/propsens"</span><span class="op">)</span></span></code></pre></div>
-<p>To also build the vignettes:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"mostafa-abbas/propsens"</span>, build_vignettes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p>The heart catheterization example in the articles was pre-computed from the public right heart catheterization data of the <code>ATbounds</code> package (<code>install.packages("ATbounds")</code>); the script is <code>data-raw/heart_catheterization_example.R</code>.</p>
+<p>On Linux the packages ‘dbarts’ (BART) and ‘grf’ are compiled from source, which takes several minutes and needs a C++ compiler. The faster model set (<code>algorithms = c("logistic_regression", "random_forest", "gradient_boosting")</code>) also needs ‘randomForest’ and ‘gbm’. To build the vignettes as well, add <code>build_vignettes = TRUE</code>; they are also on the <a href="https://mostafa-abbas.github.io/propsens">website</a>.</p>
+<p><strong>Run time.</strong> With the default seven models, <code><a href="reference/propensity_sensitivity.html">propensity_sensitivity()</a></code> takes about a minute for 614 patients and 7 covariates, and about 16 minutes for 5,735 patients and 50 covariates on one core; it grows with the number of patients and covariates. On Linux and macOS, <code>cores = 4</code> runs the models in parallel (on Windows the run is serial).</p>
 </div>
 <div class="section level2">
 <h2 id="what-it-does">What it does<a class="anchor" aria-label="anchor" href="#what-it-does"></a>
@@ -124,28 +138,74 @@
 <li>
 <strong>re-matches</strong> with each model, using the analyst’s own matching options;</li>
 <li>
-<strong>applies a quality gate</strong>: a model is kept only if it predicts treatment about as well as the best model and its matched sample is about as well balanced;</li>
+<strong>applies a quality gate</strong>: a model is kept only if its cross-fitted log-loss is within 5 % of the best model’s and its matched sample is about as well balanced (largest standardized mean difference on main terms within 0.10 of the best model’s and at most 0.25);</li>
 <li>
-<strong>reports, for the kept models</strong>, rank disagreement (how differently the models order the treated patients), pair instability (how often they choose different partners), the bootstrap rank instability of the logistic model, and the spread of balance across models.</li>
+<strong>reports, for the kept models</strong>, rank disagreement (primary: how differently the models order the treated patients), pair instability (exploratory: how often they choose different partners), the bootstrap rank instability of the logistic model and the spread of balance across models (descriptive).</li>
 </ul>
+<p>The fold split and every tree model depend on <code>seed</code>, and on small data the kept models and the values can change noticeably from one seed to the next. Rerun with two or three values of <code>seed</code> and report all of them; <code><a href="reference/seed_sensitivity.html">seed_sensitivity()</a></code> does this in one call.</p>
 </div>
 <div class="section level2">
-<h2 id="example-result-right-heart-catheterization">Example result (right heart catheterization)<a class="anchor" aria-label="anchor" href="#example-result-right-heart-catheterization"></a>
+<h2 id="a-run-where-the-gate-keeps-several-algorithms-simulated-data">A run where the gate keeps several algorithms (simulated data)<a class="anchor" aria-label="anchor" href="#a-run-where-the-gate-keeps-several-algorithms-simulated-data"></a>
 </h2>
-<p>On the public right heart catheterization data (Connors et al., <em>JAMA</em> 1996; 5,735 patients, 2,184 catheterized):</p>
-<ul>
-<li>
-<strong>4 of 7 models were kept by the quality gate</strong>: logistic regression and BART with seeds 1, 2 and 3. The three GRF fits were excluded.</li>
-<li><strong>Rank disagreement was 0.047.</strong></li>
-<li>
-<strong>Odds ratios of death within 30 days</strong>, matching with each kept model (95 % confidence interval): logistic regression 1.37 (1.19–1.57); BART seed 1 1.27 (1.11–1.47); BART seed 2 1.32 (1.15–1.53); BART seed 3 1.38 (1.20–1.60). propsens itself never uses the outcome; the odds ratios only show what the disagreement means for the estimate.</li>
-</ul>
-<p>The <a href="https://mostafa-abbas.github.io/propsens/articles/how-it-works.html">step-by-step article</a> walks through this example.</p>
+<p>These data are <strong>simulated</strong> with <code><a href="reference/simulate_example_data.html">simulate_example_data()</a></code> (Scenario 1: six normal covariates, logistic treatment model, 1,000 patients), so the output shows what the summaries look like when the gate keeps models from several algorithms. The output was computed once with <code>data-raw/simulated_default_output.R</code>.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mostafa-abbas/propsens" class="external-link">propsens</a></span><span class="op">)</span></span>
+<span><span class="va">simulated</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/simulate_example_data.html">simulate_example_data</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">1000</span>, scenario <span class="op">=</span> <span class="st">"S1"</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span> <span class="op">+</span> <span class="va">x4</span> <span class="op">+</span> <span class="va">x5</span> <span class="op">+</span> <span class="va">x6</span>, data <span class="op">=</span> <span class="va">simulated</span><span class="op">)</span></span></code></pre></div>
+<pre><code>Propensity model sensitivity
+1. Quality gate: 7 of 7 models kept (3 algorithms: logistic regression, BART,
+   GRF); log-loss within 5 % of the best; relative balance rule: max |SMD|
+   main terms at most 0.10 above the best model's and at most 0.25 (limit here
+   0.247).
+   Treated patients kept by each kept model: logistic_regression_1 100 %,
+     bart_1 100 %, bart_2 100 %, bart_3 100 %, grf_probability_1 100 %,
+     grf_probability_2 100 %, grf_probability_3 100 %
+2. Rank disagreement (primary; study mean over treated): 0.0588
+   Equal weight per algorithm (exploratory): 0.0678
+   Between/within-algorithm ratio (exploratory; median over treated): 4.12.
+     Disagreement between algorithms divided by disagreement between seeds of
+     the same algorithm; with three seeds per algorithm, seed noise alone
+     gives about 0.4.
+   Pair instability (exploratory; study mean over treated): 0.824 of a
+     possible 0.857 with 7 models. It is high whenever many untreated patients
+     have similar scores, even when the models agree.
+   Bootstrap rank instability of the logistic model (descriptive): 0.0534
+3. Balance spread (descriptive; range of max |SMD| main terms over the kept
+   models): 0.0755 (0.147 to 0.223)
+Control spread (descriptive; mean scaled over treated): 1.02; 1 = the partners
+   chosen by different models differ as much as a typical matched pair (scale:
+   the matches of logistic_regression_1)
+Matching: 1:1 nearest neighbour on the logit, without replacement, order
+   "largest", caliper none; target: ATT.</code></pre>
+<p>The same with <code>seed</code> 1, 2 and 3 (<code><a href="reference/seed_sensitivity.html">seed_sensitivity()</a></code>), all three rows as they came:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/seed_sensitivity.html">seed_sensitivity</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span> <span class="op">+</span> <span class="va">x4</span> <span class="op">+</span> <span class="va">x5</span> <span class="op">+</span> <span class="va">x6</span>, seeds <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, data <span class="op">=</span> <span class="va">simulated</span><span class="op">)</span></span></code></pre></div>
+<pre><code>Propensity model sensitivity over 3 values of `seed`
+ seed models_kept models_fitted algorithms_kept
+    1           7             7               3
+    2           6             7               3
+    3           7             7               3
+                    kept_by_algorithm fallback rank_disagreement
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0588
+ logistic regression 1, BART 3, GRF 2    FALSE            0.0579
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0591
+ rank_disagreement_equal_weight pair_instability bootstrap_rank_instability
+                         0.0678            0.824                     0.0534
+                         0.0676            0.800                     0.0628
+                         0.0684            0.830                     0.0544
+
+Range over the seeds:
+                        summary minimum maximum
+              rank_disagreement  0.0579  0.0591
+ rank_disagreement_equal_weight  0.0676  0.0684
+               pair_instability  0.8000  0.8300
+     bootstrap_rank_instability  0.0534  0.0628
+Report every row; the values depend on the seed as much as shown here.</code></pre>
 </div>
 <div class="section level2">
-<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<h2 id="what-a-failed-quality-gate-looks-like">What a failed quality gate looks like<a class="anchor" aria-label="anchor" href="#what-a-failed-quality-gate-looks-like"></a>
 </h2>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mostafa-abbas/propsens" class="external-link">propsens</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"lalonde"</span>, package <span class="op">=</span> <span class="st">"MatchIt"</span><span class="op">)</span></span>
 <span><span class="va">matched</span> <span class="op">&lt;-</span> <span class="fu">MatchIt</span><span class="fu">::</span><span class="fu"><a href="https://kosukeimai.github.io/MatchIt/reference/matchit.html" class="external-link">matchit</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">educ</span> <span class="op">+</span> <span class="va">race</span> <span class="op">+</span> <span class="va">married</span> <span class="op">+</span> <span class="va">nodegree</span> <span class="op">+</span> <span class="va">re74</span> <span class="op">+</span> <span class="va">re75</span>,</span>
@@ -153,33 +213,33 @@
 <span><span class="va">sensitivity</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">matched</span><span class="op">)</span>  <span class="co"># refits the seven models and re-matches</span></span>
 <span><span class="va">sensitivity</span>                                     <span class="co"># gate, rank disagreement, pair instability</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">sensitivity</span><span class="op">)</span>                            <span class="co"># every number, every model's fit and balance</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sensitivity</span>, type <span class="op">=</span> <span class="st">"models"</span><span class="op">)</span>              <span class="co"># balance after matching, one row per model</span></span></code></pre></div>
-<p>On these data no model passes the balance part of the gate, so the output opens with a warning that the diagnostic is outside the setting where it was evaluated. The run takes about a minute.</p>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sensitivity</span>, type <span class="op">=</span> <span class="st">"models"</span><span class="op">)</span>              <span class="co"># balance after matching, one row per model</span></span>
+<span><span class="fu"><a href="reference/seed_sensitivity.html">seed_sensitivity</a></span><span class="op">(</span><span class="va">matched</span><span class="op">)</span>                       <span class="co"># the same with seed = 1, 2 and 3</span></span></code></pre></div>
+<p>On these data no model reaches a good balance (every largest standardized mean difference is above 1), so fewer than two models pass the gate. The function raises an R warning and the output opens with it: there is no set of similarly good models to compare, and the values describe all seven models. The run takes about a minute.</p>
 </div>
 <div class="section level2">
 <h2 id="what-it-is-and-what-it-is-not">What it is, and what it is not<a class="anchor" aria-label="anchor" href="#what-it-is-and-what-it-is-not"></a>
 </h2>
-<p><strong>What it is:</strong> a design-stage description of how much a 1:1 nearest-neighbour matched design depends on the choice of propensity model, at the level of the whole study.</p>
-<p><strong>What it is not:</strong> a test of whether the effect estimate is right, a per-patient flag, or a check for unmeasured confounding. Every model uses the same covariates, so a confounder missing from that list is missing from all of them.</p>
-<p>The diagnostics are evaluated in a manuscript in preparation (Abbas, Do equally good propensity models agree on whom to match?). Until it is available, report the output as a description of how much the matched design depends on the choice of propensity model, not as a validated check.</p>
+<p><strong>What it is:</strong> a design-stage description of how much a 1:1 nearest-neighbour matched design depends on the choice among similarly good propensity models, at the level of the whole study.</p>
+<p><strong>What it is not:</strong> a test of whether the effect estimate is right, a per-patient flag, or a check for unmeasured confounding. Every model uses the same covariates, so a confounder missing from that list is missing from all of them. It cannot tell whether a disagreement matters for the effect estimate: models can disagree about patients’ ranks in ways that do not change the estimate, and agree while all being wrong in the same way. A small value is not evidence that the estimate is unbiased.</p>
+<p>These diagnostics have been studied in the author’s simulations and benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet. Report the output as a description of how much the matched design depends on the choice of propensity model, not as a validated check.</p>
 </div>
 <div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
-<p>The articles are also on the website, <a href="https://mostafa-abbas.github.io/propsens" class="uri">https://mostafa-abbas.github.io/propsens</a>.</p>
+<p>The articles are on the website, <a href="https://mostafa-abbas.github.io/propsens" class="uri">https://mostafa-abbas.github.io/propsens</a>:</p>
 <ul>
 <li>
-<strong>Getting started:</strong> <code><a href="articles/getting-started.html">vignette("getting-started", package = "propsens")</a></code>.</li>
+<a href="https://mostafa-abbas.github.io/propsens/articles/getting-started.html">Getting started</a>: install, run, read the output.</li>
 <li>
-<strong>propsens at a glance:</strong> <code><a href="articles/at-a-glance.html">vignette("at-a-glance", package = "propsens")</a></code> (<a href="vignettes/at-a-glance.Rmd">source</a>): the question, what you run, what you get and how to read it, with the right heart catheterization example.</li>
+<a href="https://mostafa-abbas.github.io/propsens/articles/at-a-glance.html">propsens at a glance</a>: the question, what you run, what you get and how to read it, with the right heart catheterization example.</li>
 <li>
-<strong>How propsens works, step by step:</strong> <code><a href="articles/how-it-works.html">vignette("how-it-works", package = "propsens")</a></code> (<a href="vignettes/how-it-works.Rmd">source</a>): propensity scores and matching, the three kinds of model, the quality gate, rank disagreement and pair instability, and effect estimates across the kept models, each with the same example.</li>
+<a href="https://mostafa-abbas.github.io/propsens/articles/how-it-works.html">How propsens works, step by step</a>: propensity scores and matching, the three kinds of model, the quality gate, rank disagreement and pair instability, and effect estimates across the kept models, each with the same example.</li>
 <li>
-<strong>How the diagnostics are defined:</strong> <code><a href="articles/definitions.html">vignette("definitions", package = "propsens")</a></code>.</li>
+<a href="https://mostafa-abbas.github.io/propsens/articles/definitions.html">How the diagnostics are defined</a>: every definition, and one table with the label (primary, exploratory, descriptive) of each summary.</li>
 <li>
-<strong>Reading the plots and reporting:</strong> <code><a href="articles/reporting.html">vignette("reporting", package = "propsens")</a></code>.</li>
-<li>
-<strong>Citing:</strong> <code>citation("propsens")</code>.</li>
+<a href="https://mostafa-abbas.github.io/propsens/articles/reporting.html">Reading the plots and reporting</a>: the plots and a Methods and Results text built from the result.</li>
+<li>Citing: <code>citation("propsens")</code>.</li>
 </ul>
 </div>
 <div class="section level2">

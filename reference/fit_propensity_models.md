@@ -1,17 +1,19 @@
 # Fit the propensity model set with cross-fitting
 
 Fits every model of a propensity model set, the tree algorithms once per
-seed. The default is the set evaluated in a manuscript in preparation,
-the same as in
+seed. The default is the same as in
 [`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md):
 logistic regression with main effects, BART and the GRF probability
-forest (three seeds each), with the same settings. The faster set of
+forest (three seeds each), with the same settings. A faster set of
 logistic regression, random forests and gradient boosting is available
 with
-`algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`.
-Scores are cross-fitted by default: the fold assignment is stratified by
-treatment, derived from `seed`, and shared by every model; for each fold
-the model is fitted on the other folds and predicts the held-out fold.
+`algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`
+(packages 'randomForest' and 'gbm'). These diagnostics have been studied
+in the author's simulations and benchmark analyses; a methods paper is
+in preparation. No peer-reviewed evaluation exists yet. Scores are
+cross-fitted by default: the fold assignment is stratified by treatment,
+derived from `seed`, and shared by every model; for each fold the model
+is fitted on the other folds and predicts the held-out fold.
 Probabilities are clipped to `[clip, 1 - clip]`, turned into logits, and
 ranked (percentile rank = `rank(logit, ties = "average") / n`).
 
@@ -41,8 +43,11 @@ print(x, digits = 4, ...)
 - formula:
 
   A two-sided formula such as `treat ~ x1 + x2`. The left-hand side is
-  the treatment and must be numeric, coded 0/1. Factor covariates are
-  expanded to dummies for the tree algorithms.
+  the treatment: numeric coded 0/1, logical (`TRUE` = treated) or a
+  factor with two levels (coded as MatchIt does: the level `"0"`, or the
+  smaller of two numeric levels, is untreated; otherwise the first level
+  is untreated). Factor covariates are expanded to dummies for the tree
+  algorithms.
 
 - data:
 
@@ -52,8 +57,8 @@ print(x, digits = 4, ...)
 - algorithms:
 
   Which algorithms to fit. The default,
-  `c("logistic_regression", "bart", "grf_probability")`, is the set
-  evaluated in a manuscript in preparation and the default of
+  `c("logistic_regression", "bart", "grf_probability")`, is also the
+  default of
   [`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md):
   `"bart"` ([`dbarts::bart2`](https://rdrr.io/pkg/dbarts/man/bart.html),
   default priors, 75 trees, 500 burn-in and 500 kept draws in each of 4
@@ -63,7 +68,8 @@ print(x, digits = 4, ...)
   honest splitting, 2,000 trees, one thread; out-of-bag predictions when
   `cross_fit = FALSE`), both on the dummy-coded design matrix. The
   faster set, `"random_forest"` and `"gradient_boosting"` with logistic
-  regression, is not part of that evaluation. Also exploratory, logistic
+  regression, needs the packages 'randomForest' and 'gbm'; it has been
+  studied less than the default set. Also exploratory, logistic
   regression variants on the same design matrix: `"logistic_splines"`
   (fitted once; natural cubic splines, `splines::ns(df = 3)`, on every
   column with at least 5 distinct values in the training rows whose two
@@ -77,8 +83,9 @@ print(x, digits = 4, ...)
 
 - seeds:
 
-  Integer vector; one tree model per seed. Logistic regression is fitted
-  once.
+  `1:k`: `k` tree models per tree algorithm (default `1:3`). Only the
+  number of seeds is used, so any other vector is an error; the
+  randomness is set by `seed`. Logistic regression is fitted once.
 
 - folds:
 
@@ -149,13 +156,26 @@ seed and every fold; when `n_trees` is given it is used as is.
 
 ## Seeds and parallel runs
 
-Per-task seeds are derived in the main process from `seed` and the model
-index, passed to each worker and applied with
+Per-task seeds are derived in the main process from `seed` and the
+model's position in the list of models (the order of `algorithms`, then
+the seed index), passed to each worker and applied with
 [`withr::with_seed()`](https://withr.r-lib.org/reference/with_seed.html),
 which restores the random number generator state afterwards. Results are
-identical for `cores = 1` and `cores > 1`. Parallel runs use
+identical for `cores = 1` and `cores > 1`. Because the position enters
+the seed, a model's random stream depends on which algorithms come
+before it: `random_forest_1` is a different fit with and without
+logistic regression in `algorithms`. The fold split also comes from
+`seed`. On small data the scores, and therefore the models kept by the
+quality gate and every summary of
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md),
+can change noticeably with `seed`; rerun with two or three values of
+`seed` and report all of them
+([`seed_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/seed_sensitivity.md)
+does this). Parallel runs use
 [`parallel::mclapply()`](https://rdrr.io/r/parallel/mclapply.html) on
-Unix and fall back to a serial run on Windows.
+Unix; on Windows the run is serial (with one message per session). A
+worker that is stopped (for example, out of memory) stops the run with
+the name of its model.
 
 ## The "as MatchIt does it" mode
 
@@ -173,11 +193,12 @@ default.
 The models table reports the cross-fitted log-loss, Brier score and
 c-statistic (rank-based AUC). `passed_logloss_gate` is `TRUE` when the
 log-loss is at most `(1 + quality_tolerance)` times the best model's
-log-loss. The balance part of the quality gate (post-match maximum
-absolute standardized mean difference on main terms at most 0.10) needs
-the matches and is applied later by the wrapper
-[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md),
-not here.
+log-loss. The balance part of the quality gate needs the matches and is
+applied later by
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md):
+by default a model is kept when its largest post-match absolute
+standardized mean difference on main terms is at most 0.10 above the
+best model's and at most 0.25 (`balance_rule`).
 
 ## Examples
 
@@ -206,27 +227,20 @@ head(model_set$rank)
 #> [5,]             0.8583062       0.9291531           0.9714984
 #> [6,]             0.8631922       0.9649837           0.9820847
 # \donttest{
-# Default: logistic regression, BART x 3 and GRF x 3 (slower).
-full_set <- fit_propensity_models(
+# The default algorithms (logistic regression, BART, GRF) with one seed per tree algorithm,
+# to keep the example short; an analysis uses the default seeds = 1:3 (seven models).
+default_algorithms <- fit_propensity_models(
   treat ~ age + educ + race + married + nodegree + re74 + re75,
-  data = lalonde
+  data = lalonde, seeds = 1
 )
-full_set$models
+default_algorithms$models
 #>                model_id           algorithm seed_index task_seed n_trees
 #> 1 logistic_regression_1 logistic_regression          1   1799822      NA
 #> 2                bart_1                bart          1   1807741      NA
-#> 3                bart_2                bart          2   1815660      NA
-#> 4                bart_3                bart          3   1823579      NA
-#> 5     grf_probability_1     grf_probability          1   1831498      NA
-#> 6     grf_probability_2     grf_probability          2   1839417      NA
-#> 7     grf_probability_3     grf_probability          3   1847336      NA
+#> 3     grf_probability_1     grf_probability          1   1815660      NA
 #>     logloss     brier c_statistic passed_logloss_gate
 #> 1 0.4122854 0.1337668   0.8612424               FALSE
 #> 2 0.3529691 0.1112218   0.9048762                TRUE
-#> 3 0.3551853 0.1117675   0.9034524                TRUE
-#> 4 0.3564035 0.1118645   0.9024696                TRUE
-#> 5 0.3771754 0.1205895   0.8926479               FALSE
-#> 6 0.3768752 0.1204070   0.8932149               FALSE
-#> 7 0.3771445 0.1206686   0.8927487               FALSE
+#> 3 0.3777964 0.1208646   0.8924463               FALSE
 # }
 ```

@@ -1,7 +1,8 @@
 # Bootstrap rank instability of the logistic propensity model
 
-The sampling noise of the analyst's logistic model: the logistic model
-with the formula's main terms is refitted on `bootstrap_samples`
+Descriptive. The sampling noise of the analyst's logistic model:
+logistic regression with the formula as written (including any
+interactions or transformations) is refitted on `bootstrap_samples`
 nonparametric bootstrap samples of all patients, the original patients
 are ranked by each refit's logit (percentile rank
 `rank(logit, ties = "average") / n`, on a 0 to 1 scale), and for each
@@ -19,7 +20,8 @@ bootstrap_rank_instability(
   data = NULL,
   bootstrap_samples = 20,
   cores = 1,
-  seed = 1
+  seed = 1,
+  clip_bootstrap = FALSE
 )
 
 # S3 method for class 'bootstrap_rank_instability'
@@ -57,6 +59,13 @@ print(x, ...)
   [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md).
   Not used for stored ranks.
 
+- clip_bootstrap:
+
+  `FALSE` (default) or `TRUE`: clip the refits' scores to
+  `[0.001, 0.999]`, the default `clip` of
+  [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md).
+  Not used for stored ranks.
+
 - ...:
 
   Not used.
@@ -71,10 +80,14 @@ than two bootstrap samples are usable.
 
 ## Details
 
-It uses the covariates and the treatment only, no outcome. It is
-evaluated next to rank disagreement in a manuscript in preparation;
-report the two together. It describes the analyst's logistic model only,
-whatever distance the `matchit` object used.
+It uses the covariates and the treatment only, no outcome. Report it
+next to rank disagreement: it shows how much the logistic model's ranks
+move from sampling alone. It describes the analyst's logistic model
+only, whatever distance the `matchit` object used. The refits' scores
+are not clipped by default, unlike the cross-fitted scores (see
+`clip_bootstrap`). These diagnostics have been studied in the author's
+simulations and benchmark analyses; a methods paper is in preparation.
+No peer-reviewed evaluation exists yet.
 
 ## Examples
 

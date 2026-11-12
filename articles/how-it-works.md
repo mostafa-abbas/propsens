@@ -27,8 +27,8 @@ treated patient’s **matched partner**. If the two matched groups look
 alike at admission, a difference in their outcomes is less likely to
 reflect how ill they were to begin with.
 
-![Patients lined up along an arrow labelled ‘Chance of treatment
-(propensity score)’. Treated patients wear orange, untreated patients
+![Patients lined up along an arrow labelled 'Chance of treatment
+(propensity score)'. Treated patients wear orange, untreated patients
 grey. Arcs join each treated patient to the closest untreated patient;
 the two untreated patients with the lowest scores are left without a
 partner. Text below: Each treated patient is paired with the closest
@@ -38,16 +38,16 @@ Matching on the propensity score.
 
 The score is not observed; it has to be estimated with a statistical
 model, the **propensity model**. propsens fits several propensity
-models. Each model is then used to match the patients with the same
-matching settings the researcher chose for the original study: 1:1
-nearest-neighbour matching without replacement, with a caliper (a
-maximum allowed distance between partners) of 0.2 standard deviations of
-the score. Only the propensity model changes; everything else stays the
-same.
+models. Each model is then used to match the patients with the matching
+settings chosen for this illustration: 1:1 nearest-neighbour matching
+without replacement, with a caliper (a maximum allowed distance between
+partners) of 0.2 standard deviations of the logit of the score. Only the
+propensity model changes; everything else stays the same.
 
 In the example, each matched design kept between 78 % and 82 % of the
-catheterized patients; the others had no untreated patient within the
-caliper.
+catheterized patients; the others had no unused untreated patient within
+the caliper. With a caliper, the matched estimate describes the retained
+treated patients, not all of them.
 
 ## 2. The three kinds of model
 
@@ -70,14 +70,19 @@ propsens runs each of them three times with different random starts
 (seeds). With logistic regression this gives seven models. Every score
 is **cross-fitted**: the patients are split into five groups, and each
 patient’s score comes from a model fitted on the other four, so no model
-is judged on patients it has already seen.
+is judged on patients it has already seen. The split into groups and the
+random starts both come from one number, `seed`; on small data the
+results can change noticeably with it, so rerun with two or three values
+([`seed_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/seed_sensitivity.md)
+does this) and report all of them.
 
-**Why equally good models can still disagree.** Think of two experienced
-clinicians who triage equally well overall: they agree on most patients,
-yet they do not rank every patient in the same place. Propensity models
-behave the same way. Two models can predict treatment equally well and
-still place an individual patient a little higher or lower. In matching,
-a small change in position can mean a different partner.
+**Why similarly good models can still disagree.** Think of two
+experienced clinicians who triage about as well overall: they agree on
+most patients, yet they do not rank every patient in the same place.
+Propensity models behave the same way. Two models can predict treatment
+about as well and still place an individual patient a little higher or
+lower. In matching, a small change in position can mean a different
+partner.
 
 ## 3. The quality gate
 
@@ -87,11 +92,11 @@ models a careful researcher would accept tells us something about the
 design. So before anything is measured, each of the seven models must
 pass two checks, the **quality gate**.
 
-![Two wooden gates on a path. The first is labelled ‘Fits as well as the
-best’, the second ‘Balances as well as the best’. Three GRF figures
-stand at the start beside a sign ‘Not kept for this study’; logistic
+![Two wooden gates on a path. The first is labelled 'Fits as well as the
+best', the second 'Balances as well as the best'. Three GRF figures
+stand at the start beside a sign 'Not kept for this study'; logistic
 regression and three BART figures stand past both gates under a sign
-‘Kept models’.](img/works-gate.png)
+'Kept models'.](img/works-gate.png)
 
 The quality gate: two checks, fit and balance.
 
@@ -121,8 +126,10 @@ Logistic regression and the three BART fits reached 0.094 to 0.113 and
 passed; the three GRF fits reached 0.205 to 0.221 and failed.
 
 **Result:** 4 of 7 models were kept, logistic regression and the three
-BART fits. These are the “equally good” models whose disagreement is
-measured next.
+BART fits. These are the **kept models** whose disagreement is measured
+next. Here two algorithms were kept; when the kept models are seeds of a
+single algorithm, propsens raises a warning, because their disagreement
+then measures only that algorithm’s seed noise.
 
 ![The quality gate in the example. Left panel: cross-fitted log-loss of
 each of the seven models; right panel: the largest SMD after matching.
@@ -142,28 +149,28 @@ The quality gate in the heart catheterization example.
 | GRF, seed 2 | 0.562 | 0.221 | 81 % | no |
 | GRF, seed 3 | 0.562 | 0.205 | 81 % | no |
 
-**When fewer than two models pass**, there is nothing to compare.
-propsens then uses all seven models and its output opens with a warning:
-the diagnostic is outside the setting in which it was evaluated, and the
-numbers should be read with that in mind. This did not happen in the
-example.
+**When fewer than two models pass**, there is no set of similarly good
+models to compare. propsens then uses all seven models, raises an R
+warning, and its output opens with it: the values describe all models,
+not a kept set. This did not happen in the example.
 
 ## 4. All three excluded models are GRF. Is GRF a poor method?
 
 Not in general. The three GRF fits are the same method with different
 random starts, so they usually pass or fail together. The gate judges
 each study on its own data, and in other data GRF may fit best. In the
-datasets used to evaluate the method, at least one GRF fit passed the
-gate in 790 of 800 benchmark datasets built on real patient
-characteristics (ACIC 2016) and in 105 of 300 simulated datasets.
+author’s unpublished evaluation runs (matching without replacement), at
+least one GRF fit passed the gate in 790 of 800 benchmark datasets based
+on ACIC 2016 covariates and in 105 of 300 simulated datasets; in 78 of
+those 300 the gate kept fewer than two models.
 
 ## 5. Rank disagreement and pair instability
 
 A patient’s **percentile rank** is their place in the line-up of all
 patients ordered by the propensity score, from 0 (lowest chance of
-treatment) to 100 (highest). Matching pairs patients who stand close
-together in this line-up, so the order is what decides who is paired
-with whom.
+treatment) to 100 (highest); the package stores it on a 0 to 1 scale.
+Matching pairs patients who stand close together in this line-up, so the
+order is what decides who is paired with whom.
 
 ![Three rows of the same six patients, A to F, one row per model
 (logistic regression, BART, GRF). Patient C is highlighted: third in the
@@ -175,15 +182,19 @@ The same patients, lined up slightly differently by each model.
 
 Each model lines up the same patients. Here patient C moves one place
 with BART and one place the other way with GRF. **Rank disagreement**
-measures how much such positions move, on average across the treated
-patients: for each treated patient it takes the spread (standard
-deviation) of their percentile rank across the kept models, and then
-averages over the treated patients. 0 would mean every kept model puts
-every patient in the same place.
+(the primary summary) measures how much such positions move, on average
+across the treated patients: for each treated patient it takes the
+spread (standard deviation) of their percentile rank across the kept
+models, and then averages over the treated patients. 0 would mean every
+kept model puts every patient in the same place. Because it is a
+standard deviation over models, it also depends on how many seeds each
+kept algorithm has; propsens also reports a version with equal weight
+per algorithm (exploratory).
 
-In the example, rank disagreement was **0.047**: a typical catheterized
-patient’s place in the line-up moved by about 5 percentile points across
-the four kept models. The figure shows the real line-ups.
+In the example, rank disagreement was **0.047**: the standard deviation
+of a catheterized patient’s percentile rank across the four kept models
+averaged 4.7 points on the 0 to 100 scale. No thresholds for a “large”
+value exist yet. The figure shows the real line-ups.
 
 ![The 2,184 catheterized patients, each a dot, ranked by logistic
 regression (horizontal axis) and by each kept BART model (vertical axis,
@@ -193,19 +204,24 @@ lie near it, with a visible spread.](rhc-ranks.png)
 The catheterized patients’ ranks under logistic regression and each kept
 BART model.
 
-**Pair instability** looks at the partners directly: it measures how
-often the kept models choose different untreated partners for the same
-treated patient. For each treated patient, propsens finds the partner
-chosen most often and the share of kept models that chose it; pair
-instability is 1 minus the average of that share. With four kept models
-it lies between 0 (all four always agree) and 0.75 (all four always
-choose differently).
+**Pair instability** (exploratory) looks at the partners directly: it
+measures how often the kept models choose different untreated partners
+for the same treated patient. For each treated patient, propsens finds
+the partner chosen most often and the share of kept models that chose
+it; pair instability is 1 minus the average of that share. With four
+kept models it lies between 0 (all four always agree) and 0.75 (all four
+always choose differently).
 
 In the example, pair instability was **0.64**: on average, a
 catheterized patient’s most common partner was chosen by only about a
 third of the kept models. Of the 1,249 catheterized patients matched by
-all four kept models, every one had at least two different partners. The
-figure follows one typical patient.
+all four kept models, every one had at least two different partners.
+This is expected when many untreated patients have similar scores, and
+it does not by itself mean the matched groups differ; a different
+partner with the same characteristics is harmless. Pair instability
+depends on the number of kept models (its maximum is 1 minus 1 divided
+by the number of models) and on how dense the untreated patients are.
+The figure follows one treated patient.
 
 ![One treated (catheterized) patient on the left, linked to the four
 kept models: logistic regression and BART seeds 1, 2 and 3. Each model
@@ -217,16 +233,16 @@ One treated patient, four kept models, four different untreated
 partners.
 
 propsens also reports the **bootstrap rank instability** of the logistic
-model: how much the ranks move when the same logistic model is refitted
-on resampled copies of the data. It describes the sampling noise of one
-model rather than the choice between models, and it is reported
-alongside rank disagreement. In the example it was 0.051.
+model (descriptive): how much the ranks move when the same logistic
+model is refitted on resampled copies of the data. It describes the
+sampling noise of one model rather than the choice between models, and
+it is reported alongside rank disagreement. In the example it was 0.051.
 
 ## 6. Effect estimates across the kept models
 
-propsens never uses the outcome. Only to show what the disagreement
-means in practice, the effect can be estimated with each kept model’s
-matched pairs. The result is an **odds ratio**: how the odds of death
+propsens never uses the outcome. Only as an illustration, the effect can
+be estimated with each kept model’s matched pairs; this is not part of
+the diagnostic. The result is an **odds ratio**: how the odds of death
 within 30 days compare between catheterized patients and their untreated
 partners. An odds ratio of 1 means no difference; the **95 % confidence
 interval** is the range of values compatible with the data.
@@ -234,21 +250,32 @@ interval** is the range of values compatible with the data.
 ![Odds ratio of death within 30 days in the matched pairs of each of the
 four kept models, with 95 % confidence intervals: logistic regression
 and BART with seeds 1, 2 and 3. All four lie above 1, between about 1.27
-and 1.38; the BART seed 3 estimate is marked as having a largest SMD
-slightly above 0.10.](rhc-effects.png)
+and 1.38; logistic regression and BART seed 3 are marked as having a
+largest SMD above 0.10.](rhc-effects.png)
 
 Odds ratios of death within 30 days across the four kept models.
 
-All four kept models point the same way. The odds ratio was 1.37 (95 %
-CI 1.19 to 1.57) with logistic regression, and 1.27, 1.32 and 1.38 with
-the three BART models. The direction of the association (higher odds of
-death after catheterization) does not depend on the model, but the size
-of the estimate moves by about a tenth from one equally good model to
-another.
+The odds ratio was 1.37 (95 % CI 1.19 to 1.57) with logistic regression,
+and 1.27 (1.11 to 1.47), 1.32 (1.15 to 1.53) and 1.38 (1.20 to 1.60)
+with the three BART models. All four estimates lie above 1 (higher odds
+of death among catheterized patients than among their matched untreated
+partners).
 
-The third BART model’s balance after matching (largest SMD 0.113) is
-slightly above the 0.10 level often used to accept a matched design, so
-the manuscript’s effect table lists three of the four.
+Matching with each kept model gave odds ratios between 1.27 and 1.38,
+all with wide and overlapping 95 % confidence intervals. The two ends of
+this range are two BART fits that differ only in their random seed (BART
+seed 1 and BART seed 3), and each matched sample keeps a different 78 to
+82 % of the catheterized patients, so the estimates describe slightly
+different groups. The example shows that the estimate is not identical
+across kept models; it does not show how much of the difference is due
+to the model, to the seed, or to chance. A larger disagreement does not
+by itself mean a larger change in the estimate.
+
+Two of the four kept models, logistic regression (0.103) and the third
+BART model (0.113), have a largest SMD above the conventional 0.10
+although they pass the relative rule; with the fixed 0.10 rule
+(`balance_rule = "absolute"`) only the first two BART fits would be
+kept, which are seeds of one algorithm.
 
 ## How the numbers were produced
 

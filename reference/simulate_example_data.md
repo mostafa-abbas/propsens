@@ -1,12 +1,13 @@
 # Simulate an example dataset for the propensity model sensitivity diagnostics
 
-Generates one dataset from the data-generating mechanisms of the
-simulation study. Six standard normal covariates `x1` to `x6`; in
-Scenario 5 four binary covariates `b1` to `b4` are added, `b4` rare at 5
-%. The true treatment logit is `alpha + X beta + nonlinear(X)`, where
-`alpha` is solved numerically so that the mean true propensity over the
-generated patients equals `treated_share`. The outcome is
-`y = mu0 + tau * treat + noise` with
+Generates one dataset from simulated data-generating mechanisms (with
+the true propensity and the outcome), for examples and for checking the
+diagnostics where the truth is known. Six standard normal covariates
+`x1` to `x6`; in Scenario 5 four binary covariates `b1` to `b4` are
+added, `b4` rare at 5 %. The true treatment logit is
+`alpha + X beta + nonlinear(X)`, where `alpha` is solved numerically so
+that the mean true propensity over the generated patients equals
+`treated_share`. The outcome is `y = mu0 + tau * treat + noise` with
 `mu0 = X gamma + lambda * nonlinear(X)`.
 
 ## Usage
@@ -36,7 +37,8 @@ simulate_example_data(
 
   Strength of the nonlinear terms in the outcome model: `0` means the
   nonlinear terms affect treatment but not the outcome (harmless
-  misspecification); the plan uses `1.5` for the harmful case.
+  misspecification); larger values, such as `1.5`, make the
+  misspecification harmful for the effect estimate.
 
 - treated_share:
 

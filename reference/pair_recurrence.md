@@ -1,9 +1,11 @@
 # Pair recurrence across models and across bootstrap resamples
 
-A descriptive index of how often the same untreated partner is chosen,
-reported next to pair instability (1 minus the recurrence across
-models). The across-models and bootstrap versions are kept separate and
-are never mixed.
+A descriptive index of how often the same untreated partner is chosen.
+Pair instability (exploratory), reported by
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md),
+is 1 minus its mean across the kept models over treated patients; it
+ranges from 0 to `1 - 1 / M` with `M` kept models. The across-models and
+bootstrap versions are kept separate and are never mixed.
 
 ## Usage
 
@@ -56,7 +58,7 @@ per patient: `row`, `id`, `treated`, `modal_control_models`,
 ## Details
 
 **Across models.** For treated patient i, the modal partner is the
-untreated partner chosen most often by the models in use; the recurrence
+untreated partner chosen most often by the kept models; the recurrence
 is the share of those models choosing it (see the denominator rule
 below). Floor `1 / M` (every model picks a different untreated partner),
 ceiling 1.
@@ -71,9 +73,11 @@ number of resamples in which i is present; its expected ceiling is about
 `1 - 1/e = 0.632`, because a given partner is missing from about 37 % of
 bootstrap samples. Skipped resamples are ignored.
 
-Expect the across-models version near its floor whenever untreated
-patients are dense: the index measures crowding more than model
-dependence.
+Expect the across-models version near its floor (pair instability near
+its maximum) whenever many untreated patients have similar scores, even
+when the models agree almost perfectly: the index measures crowding more
+than model dependence. A different partner with the same characteristics
+is harmless.
 
 ## Tie rule and denominator rule
 
@@ -84,12 +88,12 @@ dependence.
   different untreated partners, the recurrence is 1/3 whichever partner
   is called modal.
 
-- **Denominator across models.** The share is taken over the models in
-  use that matched the patient. Without a caliper every model matches
-  every treated patient, so the denominator is M, the number of models
-  in use. With a caliper a model may leave a patient unmatched; that
-  model is left out of the denominator, and a patient unmatched by every
-  model gets `NA`. The reported floor is `1 / M`.
+- **Denominator across models.** The share is taken over the kept models
+  that matched the patient. Without a caliper every model matches every
+  treated patient, so the denominator is M, the number of kept models.
+  With a caliper a model may leave a patient unmatched; that model is
+  left out of the denominator, and a patient unmatched by every model
+  gets `NA`. The reported floor is `1 / M`.
 
 - **Denominator across bootstrap resamples.** Corrected: resamples in
   which both the patient and its modal partner are present. Uncorrected:
@@ -98,9 +102,13 @@ dependence.
 
 ## Quality gate
 
-With `use_gate = TRUE` only the models that passed the log-loss gate are
-used. If fewer than two passed, all models are used and
-`quality_gate_left_fewer_than_two_models` is `TRUE` . The flag reports
+"Kept models" in this help page are the models the function uses: the
+models given in `models` (as
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+passes the models kept by its quality gate), or with `use_gate = TRUE`
+the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and
+`quality_gate_left_fewer_than_two_models` is `TRUE`. The flag reports
 the gate's outcome whatever `use_gate` is.
 
 ## Examples

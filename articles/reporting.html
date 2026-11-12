@@ -69,7 +69,9 @@
     
 <p>The check belongs in the design section of a matched study, next to
 the balance table, and it is done before any outcome is looked at. This
-vignette shows how to read the output and what to write.</p>
+vignette shows how to read the plots and how to build the Methods and
+Results text from the result, so that every number and setting comes
+from the run.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mostafa-abbas/propsens" class="external-link">propsens</a></span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/data.html" class="external-link">data</a></span><span class="op">(</span><span class="st">"lalonde"</span>, package <span class="op">=</span> <span class="st">"MatchIt"</span><span class="op">)</span></span>
@@ -77,97 +79,110 @@ vignette shows how to read the output and what to write.</p>
 <span>  <span class="va">treat</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">educ</span> <span class="op">+</span> <span class="va">race</span> <span class="op">+</span> <span class="va">married</span> <span class="op">+</span> <span class="va">nodegree</span> <span class="op">+</span> <span class="va">re74</span> <span class="op">+</span> <span class="va">re75</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">lalonde</span>, distance <span class="op">=</span> <span class="st">"glm"</span>, link <span class="op">=</span> <span class="st">"linear.logit"</span>, replace <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co"># An earlier, faster model set and small settings so the vignette builds quickly; use the</span></span>
-<span><span class="co"># defaults (logistic regression, BART and the GRF probability forest) in a real analysis.</span></span>
+<span><span class="co"># The faster model set and small settings so the vignette builds quickly; use the defaults</span></span>
+<span><span class="co"># (logistic regression, BART and the GRF probability forest) in a real analysis.</span></span>
 <span><span class="va">sensitivity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span></span>
 <span>  <span class="va">matched</span>, algorithms <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"logistic_regression"</span>, <span class="st">"random_forest"</span>, <span class="st">"gradient_boosting"</span><span class="op">)</span>,</span>
 <span>  seeds <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, n_trees <span class="op">=</span> <span class="fl">100</span>, bootstrap_samples <span class="op">=</span> <span class="fl">5</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">numbers</span> <span class="op">&lt;-</span> <span class="va">sensitivity</span><span class="op">$</span><span class="va">summary</span><span class="op">$</span><span class="va">table</span></span>
-<span><span class="va">value</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">name</span><span class="op">)</span> <span class="va">numbers</span><span class="op">$</span><span class="va">with_gate</span><span class="op">[</span><span class="va">numbers</span><span class="op">$</span><span class="va">quantity</span> <span class="op">==</span> <span class="va">name</span><span class="op">]</span></span></code></pre></div>
+<span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
 <h2 id="reading-the-three-plots">Reading the three plots<a class="anchor" aria-label="anchor" href="#reading-the-three-plots"></a>
 </h2>
 <p><strong>Patients plot</strong>
 (<code>plot(x, type = "patients")</code>). Each point is a treated
-patient. Right = the models disagree about where this patient sits among
-all patients. Up = the models give this patient different kinds of
-untreated partners. The upper right is what makes a design fragile. A
-cloud that hugs the bottom left means the design is robust to the choice
-of model. Colour shows whether the patient’s logistic score is outside
-the range of the untreated patients’ scores: fragile patients outside
-the support point to an overlap problem; fragile patients inside the
-support point to a region with few comparable untreated patients.</p>
+patient: right = the kept models place this patient differently among
+all patients; up = the kept models give this patient different kinds of
+untreated partners. The plot describes how the disagreement is spread
+over the treated patients; it is a description, and individual points
+should not be read as flags for individual patients. Points near the
+bottom left mean that these models rank the patient similarly and choose
+similar partners. Colour shows whether the patient’s logistic score is
+outside the range of the untreated patients’ scores.</p>
 <p><strong>Models plot</strong> (<code>plot(x, type = "models")</code>).
-Each row is a model, each panel a balance statistic. If the points of a
-panel line up, the balance you report does not depend on the model. If
-they spread out, it does: say so, and show this plot. Hollow points fail
-the quality gate; your own model has its own colour and is judged on
-balance only.</p>
+Each row is a model, each panel a balance statistic, each axis starting
+at 0. If the points of a panel line up, the balance you report does not
+depend on the model; if they spread out, it does: say so, and show this
+plot. Filled points are kept by the quality gate, hollow points are not;
+your own model has its own colour and is judged on balance only. The
+extended-terms panel is usually driven by sparse squares and
+interactions; report the main-terms panel.</p>
 <p><strong>Recurrence plot</strong>
 (<code>plot(x, type = "recurrence")</code>). The per-patient pair
 recurrence behind pair instability (1 minus its mean over treated
-patients across models), the second, exploratory summary printed under
-rank disagreement. Values near the floor (1 / number of models) are
-common when untreated patients are dense; report pair instability next
-to rank disagreement, not alone.</p>
+patients across the kept models; exploratory). Values near the floor (1
+/ number of kept models) are expected when untreated patients are dense,
+even when the models agree; report pair instability next to rank
+disagreement, never alone.</p>
 </div>
 <div class="section level2">
-<h2 id="what-to-write-in-methods">What to write in Methods<a class="anchor" aria-label="anchor" href="#what-to-write-in-methods"></a>
+<h2 id="what-to-write-in-methods-and-results">What to write in Methods and Results<a class="anchor" aria-label="anchor" href="#what-to-write-in-methods-and-results"></a>
 </h2>
+<p><code><a href="../reference/methods_text.html">methods_text()</a></code> builds both paragraphs from the result:
+the model set, the gate and how many models it kept (by algorithm), the
+matching settings, the share of treated patients kept, the seed and the
+main summaries. After a fallback it says that all models were used. Edit
+the sentences to fit your paper.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">text</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/methods_text.html">methods_text</a></span><span class="op">(</span><span class="va">sensitivity</span><span class="op">)</span></span></code></pre></div>
+<p><strong>Methods:</strong></p>
 <blockquote>
-<p>We assessed sensitivity of the matched design to the propensity model
-with the <code>propsens</code> package: logistic regression, Bayesian
-additive regression trees and a generalized random forest (fixed
-settings, 5-fold cross-fitted scores; seven models in all) were each
-used for 1:1 nearest-neighbour matching with replacement; we report the
-mean rank disagreement with the bootstrap rank instability of the
-logistic model, the balance spread across models and, as descriptions,
-pair instability and the control spread, all computed without
-outcomes.</p>
+<p>We described the sensitivity of the matched design to the propensity
+model with the R package propsens (version 0.1.0). Propensity models
+from logistic regression, random forest and gradient boosting (2 seeds
+for each tree method; 5 models; 5-fold cross-fitted scores; seed 1) were
+each used for 1:1 nearest-neighbour matching with replacement. Models
+were kept if their cross-fitted log-loss was within 5 % of the best
+model’s and their largest post-match standardized mean difference on
+main terms was within 0.10 of the best model’s and at most 0.25; 3 of 5
+models were kept (random forest: 2; gradient boosting: 1), and all
+treated patients were matched. For the kept models we report the mean
+rank disagreement over treated patients, the bootstrap rank instability
+of the logistic model, and the range of the largest standardized mean
+difference on main terms. No outcome data were used. These summaries are
+descriptive; they have not been validated as predictors of bias.</p>
 </blockquote>
-</div>
-<div class="section level2">
-<h2 id="what-to-write-in-results">What to write in Results<a class="anchor" aria-label="anchor" href="#what-to-write-in-results"></a>
-</h2>
-<p>The numbers below come from the run above, not typed by hand:</p>
+<p><strong>Results:</strong></p>
 <blockquote>
-<p>Mean rank disagreement was 0.029 (study level); the bootstrap rank
-instability of the logistic model was 0.036. Exploratory summaries: pair
-instability 0.524 and a between/within ratio of 4.5. As a description
-only, 59 % of treated patients received untreated partners that differed
-by more than one typical match distance across models. The maximum
-standardized mean difference (including squares and interactions) ranged
-from 0.23 to 0.24 across models (Figure S1).</p>
+<p>Mean rank disagreement over treated patients was 0.029 across the
+kept models; the bootstrap rank instability of the logistic model was
+0.036. As exploratory summaries, pair instability was 0.52 (of a
+possible 0.67 with 3 models) and the median between/within-algorithm
+ratio was 4.5. The largest standardized mean difference on main terms
+ranged from 0.16 to 0.20 across the kept models.</p>
 </blockquote>
-<p>If the quality gate left fewer than two models, add: “Fewer than two
-propensity models met the pre-specified quality criteria (log-loss
-within 5 % of the best model’s; maximum standardized mean difference on
-main terms at most 0.10 above the best model’s and at most 0.25), so all
-models were used.” With <code>balance_rule = "absolute"</code>, describe
-that rule instead; <code><a href="https://rdrr.io/r/base/print.html" class="external-link">print()</a></code> states the rule in effect.</p>
+<p>If you reran the check with several values of <code>seed</code>
+(<code><a href="../reference/seed_sensitivity.html">seed_sensitivity()</a></code>), add: “The check was repeated with
+seeds 1, 2 and 3; all results are reported.”</p>
+<p>The text states the balance rule in effect and, after a fallback,
+that all models were used. Call the criteria pre-specified only if you
+fixed them before running the check.</p>
 </div>
 <div class="section level2">
-<h2 id="when-the-result-says-fragile">When the result says “fragile”<a class="anchor" aria-label="anchor" href="#when-the-result-says-fragile"></a>
+<h2 id="if-you-judge-the-disagreement-to-be-large">If you judge the disagreement to be large<a class="anchor" aria-label="anchor" href="#if-you-judge-the-disagreement-to-be-large"></a>
 </h2>
+<p>No thresholds exist yet, so this is a judgement you state and
+justify.</p>
 <ol style="list-style-type: decimal">
 <li>Show the models plot (balance by model).</li>
 <li>Choose the design by balance, never by the outcome.</li>
-<li>Report the range of the estimates across the models in a
-supplement.</li>
-<li>Look at the treated patients with high control spread: do they share
-a region of the covariates with few untreated patients? Say so in the
-Discussion.</li>
+<li>Decide before looking at outcomes whether you will report the effect
+estimate under each kept model, and then report all of them.</li>
+<li>Look at the colour in the patients plot: is the disagreement
+concentrated among treated patients whose logistic score lies outside
+the range of the untreated patients’ scores (outside the support, an
+overlap problem)? Describe this for the study as a whole.</li>
 </ol>
 </div>
 <div class="section level2">
 <h2 id="what-the-check-does-not-do">What the check does not do<a class="anchor" aria-label="anchor" href="#what-the-check-does-not-do"></a>
 </h2>
-<p>It does not detect unmeasured confounding, it does not fix a fragile
-design, and it does not tell you which model is right. When logistic
-regression is correct, the tree models can still disagree with it: the
-check flags that the <em>choice</em> matters, not which choice is
-correct. It covers 1:1 nearest-neighbour matching for the ATT only.</p>
+<p>It does not detect unmeasured confounding, it does not fix a design,
+and it does not tell you which model is right. When logistic regression
+is correct, the tree models can still disagree with it: the check
+describes that the <em>choice</em> matters, not which choice is correct.
+It cannot tell whether a disagreement matters for the effect estimate,
+and a small value is not evidence that the estimate is unbiased. It
+covers 1:1 nearest-neighbour matching for the ATT only.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

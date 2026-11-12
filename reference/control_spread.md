@@ -1,16 +1,22 @@
 # Per-patient control spread across propensity models
 
-For each treated patient, collect the distinct untreated partners
-matched to it by the models in use and compute `s`, the mean pairwise
-Mahalanobis distance between their covariate vectors, with the
-covariance matrix of all n patients. `s = 0` when every model picks the
-same untreated partner, and `NA` when the patient is unmatched in every
-model. `s_scaled = s / D`, where `D` is the mean over matched treated
-patients of the Mahalanobis distance between a treated patient and its
+Descriptive. ("Control" in the name means the untreated partner.) For
+each treated patient, collect the distinct untreated partners matched to
+it by the kept models and compute `s`, the mean pairwise Mahalanobis
+distance between their covariate vectors, with the covariance matrix of
+all n patients. `s = 0` when every model picks the same untreated
+partner, and `NA` when the patient is unmatched in every model.
+`s_scaled = s / D`, where `D` is the mean over matched treated patients
+of the Mahalanobis distance between a treated patient and its
 logistic-regression match (the first model in use when the match set has
 no logistic regression model): 1 means the candidate partners differ
 from each other as much as a typical match differs from its treated
-patient. The oracle entry and the bootstrap block are never used.
+patient. The scale model is the logistic regression match even when
+logistic regression is not one of the kept models;
+[`print()`](https://rdrr.io/r/base/print.html) names it. When `D` is 0
+(every scale pair is identical, for example with a very tight caliper)
+`s_scaled` is `NA`, not infinite. The oracle entry and the bootstrap
+block are never used.
 
 ## Usage
 
@@ -77,9 +83,13 @@ returns.
 
 ## Quality gate
 
-With `use_gate = TRUE` only the models that passed the log-loss gate are
-used. If fewer than two passed, all models are used and
-`quality_gate_left_fewer_than_two_models` is `TRUE` . The flag reports
+"Kept models" in this help page are the models the function uses: the
+models given in `models` (as
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+passes the models kept by its quality gate), or with `use_gate = TRUE`
+the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and
+`quality_gate_left_fewer_than_two_models` is `TRUE`. The flag reports
 the gate's outcome whatever `use_gate` is.
 
 ## Examples
@@ -96,7 +106,7 @@ covariates <- lalonde[, c("age", "educ", "race", "married", "nodegree", "re74", 
 spread <- control_spread(match_set, covariates)
 spread
 #> Control spread: 2 model(s) in use (after the log-loss gate)
-#> Scaled control spread over treated: mean 1.035, 90th percentile 1.927
+#> Scaled control spread over treated (descriptive): mean 1.035, 90th percentile 1.927
 #> Scale: mean Mahalanobis distance treated to match under logistic_regression_1 = 2.584
 head(spread$patients[spread$patients$treated == 1, ])
 #>   row   id treated distinct_controls control_spread control_spread_scaled

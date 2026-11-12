@@ -75,7 +75,8 @@ not they passed the log-loss gate; the gate is applied later by the wrapper
 <span>  bootstrap_samples <span class="op">=</span> <span class="fl">0</span>,</span>
 <span>  cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  seed <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  common_random_order <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span>  common_random_order <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  clip_bootstrap <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'match_set'</span></span>
@@ -96,8 +97,9 @@ matches are stored with the row names of <code>data</code> as ids; the data itse
 
 
 <dt id="arg-replace">replace<a class="anchor" aria-label="anchor" href="#arg-replace"></a></dt>
-<dd><p><code>TRUE</code> (matching with replacement, the primary analysis) or <code>FALSE</code>
-(without replacement, the secondary analysis).</p></dd>
+<dd><p><code>TRUE</code> (matching with replacement; the default of this function) or <code>FALSE</code>
+(without replacement; the default of <code><a href="propensity_sensitivity.html">propensity_sensitivity()</a></code> with a formula). Both are
+supported; see <code><a href="../articles/definitions.html">vignette("definitions", package = "propsens")</a></code> for what each targets.</p></dd>
 
 
 <dt id="arg-ratio">ratio<a class="anchor" aria-label="anchor" href="#arg-ratio"></a></dt>
@@ -116,9 +118,10 @@ deviations of the logit.</p></dd>
 
 
 <dt id="arg-oracle-logit">oracle_logit<a class="anchor" aria-label="anchor" href="#arg-oracle-logit"></a></dt>
-<dd><p>Simulation only: a numeric vector of length n with the true logit, for
-example the <code>true_logit</code> column of <code><a href="simulate_example_data.html">simulate_example_data()</a></code>. When given, one extra
-entry <code>oracle</code> is matched with the same options.</p></dd>
+<dd><p>Internal, for simulation studies only: a numeric vector of length n with
+the true logit, for example the <code>true_logit</code> column of <code><a href="simulate_example_data.html">simulate_example_data()</a></code>. When
+given, one extra entry <code>oracle</code> is matched with the same options. Not needed in an
+analysis.</p></dd>
 
 
 <dt id="arg-bootstrap-samples">bootstrap_samples<a class="anchor" aria-label="anchor" href="#arg-bootstrap-samples"></a></dt>
@@ -135,10 +138,16 @@ entry <code>oracle</code> is matched with the same options.</p></dd>
 
 
 <dt id="arg-common-random-order">common_random_order<a class="anchor" aria-label="anchor" href="#arg-common-random-order"></a></dt>
-<dd><p>Only for <code>m_order = "random"</code>: <code>FALSE</code> (default) gives each
-model its own random order; <code>TRUE</code> gives every model (and the oracle) the same random
-order, so that the models differ only in their distances, not in the order in which
-treated patients are matched. Used by the matching-order sensitivity of the simulation.</p></dd>
+<dd><p>Internal, for simulation studies only, and only for
+<code>m_order = "random"</code>: <code>FALSE</code> (default) gives each model its own random order; <code>TRUE</code> gives
+every model (and the oracle) the same random order, so that the models differ only in their
+distances, not in the order in which treated patients are matched.</p></dd>
+
+
+<dt id="arg-clip-bootstrap">clip_bootstrap<a class="anchor" aria-label="anchor" href="#arg-clip-bootstrap"></a></dt>
+<dd><p><code>FALSE</code> (default) or <code>TRUE</code>: clip the bootstrap refits' scores to
+<code>[clip, 1 - clip]</code> with the model set's <code>clip</code>, as the cross-fitted scores are. See the
+section "Bootstrap block".</p></dd>
 
 
 <dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
@@ -195,11 +204,16 @@ number of distinct untreated partners.) Each row of a match table carries
 
 <p>With <code>bootstrap_samples = B &gt; 0</code> the function draws <code>B</code> nonparametric row bootstrap samples of
 the data (one derived seed per sample). A sample with fewer than 10 treated or 10 untreated rows
-is skipped and listed in <code>bootstrap$skipped</code>. For each sample, logistic regression with the
-model set's formula is fitted in-sample, without cross-fitting: main-effects logistic
-regression barely overfits, and this block measures sampling instability only (see
+is skipped, listed in <code>bootstrap$skipped</code> and counted in a message. For each sample, logistic
+regression with the model set's formula (as written, with any interactions or
+transformations) is fitted in-sample, without cross-fitting: this block measures the sampling
+variability of the fitted model, not its out-of-sample accuracy (see
 <code><a href="bootstrap_rank_instability.html">bootstrap_rank_instability()</a></code>). The refitted model predicts logits for every
-ORIGINAL patient; their percentile ranks form <code>bootstrap$rank</code> (n x B). When a factor level
+ORIGINAL patient; their percentile ranks form <code>bootstrap$rank</code> (n x B). These logits are not
+clipped by default, while the cross-fitted scores are clipped to <code>[clip, 1 - clip]</code>; under
+near-separation many cross-fitted scores can then share the clipped value (tied ranks) while
+their bootstrap ranks stay distinct. <code>clip_bootstrap = TRUE</code> clips the bootstrap scores in the
+same way. The default (<code>FALSE</code>) keeps the method as it was studied. When a factor level
 of the original data is absent from the sample, the refit uses the full-data design matrix
 and scores those patients as the reference level (the rule of the cross-fitted logistic
 model); the samples concerned are listed in
@@ -220,8 +234,10 @@ keeps its column, filled with <code>NA</code>, so that every matrix is n x B.</p
 
 <p>Per-task seeds are derived in the main process from <code>seed</code>, passed to each worker and
 applied with <code><a href="https://withr.r-lib.org/reference/with_seed.html" class="external-link">withr::with_seed()</a></code>; <code>m_order = "random"</code> and the bootstrap draws are
-therefore reproducible and identical for <code>cores = 1</code> and <code>cores &gt; 1</code>. Parallel runs use
-<code><a href="https://rdrr.io/r/parallel/mclapply.html" class="external-link">parallel::mclapply()</a></code> on Unix and fall back to a serial run on Windows.</p>
+therefore reproducible and identical for <code>cores = 1</code> and <code>cores &gt; 1</code>. The matching tasks,
+the bootstrap draws and the bootstrap matching each have their own family of derived seeds,
+separate from the model fits; with the default order <code>"largest"</code> matching uses no random
+numbers. Parallel runs use <code><a href="https://rdrr.io/r/parallel/mclapply.html" class="external-link">parallel::mclapply()</a></code> on Unix; on Windows the run is serial.</p>
     </div>
 
     <div class="section level2">

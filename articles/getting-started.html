@@ -71,34 +71,26 @@
 <h2 id="why-this-check">Why this check<a class="anchor" aria-label="anchor" href="#why-this-check"></a>
 </h2>
 <p>A matched study estimates the propensity score with one model,
-usually logistic regression. Another equally reasonable model, such as
-Bayesian additive regression trees or a generalized random forest, would
-rank the patients differently, give some treated patients different
-untreated partners, and could change the matched design.
-<code>propsens</code> measures how much the design depends on that
+usually logistic regression. Another model that fits about as well, such
+as Bayesian additive regression trees or a generalized random forest,
+can rank the patients differently, give some treated patients different
+untreated partners, and so change the matched design.
+<code>propsens</code> describes how much the design depends on that
 choice, <strong>without looking at outcomes</strong>, so it can be run
-at the design stage, next to the usual balance table.</p>
-<p><strong>Status of the evidence.</strong> The diagnostics are
-evaluated in a manuscript in preparation (Abbas, <em>Do equally good
-propensity models agree on whom to match?</em>). Until it is available,
-report the output as a description of how much the matched design
-depends on the choice of propensity model, not as a validated check.</p>
+at the design stage, next to the usual balance table. Every summary
+describes the study as a whole.</p>
+<p><strong>Status of the evidence.</strong> These diagnostics have been
+studied in the author’s simulations and benchmark analyses; a methods
+paper is in preparation. No peer-reviewed evaluation exists yet, and no
+thresholds for a “large” value exist yet. Report the output as a
+description of how much the matched design depends on the choice of
+propensity model, not as a validated check.</p>
 <p>For a short overview, see <a href="at-a-glance.html">propsens at a
 glance</a> (<code><a href="../articles/at-a-glance.html">vignette("at-a-glance", package = "propsens")</a></code>).
 For the method explained one idea at a time with a real clinical
 example, see <a href="how-it-works.html">How propsens works, step by
 step</a>
 (<code><a href="../articles/how-it-works.html">vignette("how-it-works", package = "propsens")</a></code>).</p>
-<p>It answers two questions:</p>
-<ul>
-<li>
-<strong>Study level:</strong> would an equally reasonable propensity
-model give a matched design with different balance?</li>
-<li>
-<strong>Patient level:</strong> which treated patients get a
-different <em>kind</em> of untreated partner under a different
-model?</li>
-</ul>
 </div>
 <div class="section level2">
 <h2 id="one-call-on-your-own-matchit-object">One call on your own <code>matchit</code> object<a class="anchor" aria-label="anchor" href="#one-call-on-your-own-matchit-object"></a>
@@ -115,120 +107,368 @@ model?</li>
 <p><code><a href="../reference/propensity_sensitivity.html">propensity_sensitivity()</a></code> reads the formula and the
 matching options from the object, refits the propensity model with
 logistic regression, Bayesian additive regression trees (BART) and a
-generalized random forest (three seeds for each tree algorithm,
-cross-fitted scores), re-matches with the same options, and computes the
-diagnostics, with 20 bootstrap refits of the logistic model. This is the
-model set evaluated in a manuscript in preparation, and it is the one to
-use in an analysis:</p>
+generalized random forest (GRF) (three seeds for each tree algorithm,
+cross-fitted scores), re-matches with the same options, applies the
+quality gate and computes the diagnostics, with 20 bootstrap refits of
+the logistic model. These are the defaults, and the model set to use in
+an analysis:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">sensitivity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">matched</span><span class="op">)</span></span></code></pre></div>
-<p>It takes about a minute on these data. So that this vignette builds
-quickly, the run below uses an earlier, faster model set (logistic
-regression, random forests and gradient boosting), fewer seeds and fewer
-refits.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sensitivity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">matched</span><span class="op">)</span></span>
+<span><span class="va">sensitivity</span></span></code></pre></div>
+<p>It takes about a minute on these data, so the output below was
+computed once with the script
+<code>data-raw/lalonde_default_output.R</code> and is shown as text:</p>
+<pre><code>Propensity model sensitivity
+WARNING: fewer than two models passed the quality gate, so there is no set of
+similarly good models to compare. Every model is used below; read the values
+as a description of all models, not of a kept set.
+1. Quality gate: 7 of 7 models in use (3 algorithms: logistic regression,
+   BART, GRF); log-loss within 5 % of the best; relative balance rule: max
+   |SMD| main terms at most 0.10 above the best model's and at most 0.25
+   (limit here 0.25).
+   Fewer than two models passed, so every model is used. Failed:
+     logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max
+       |SMD| main terms more than balance_margin above the best model's or
+       above balance_cap
+     bart_1: max |SMD| main terms more than balance_margin above the best
+       model's or above balance_cap
+     bart_2: max |SMD| main terms more than balance_margin above the best
+       model's or above balance_cap
+     bart_3: max |SMD| main terms more than balance_margin above the best
+       model's or above balance_cap
+     grf_probability_1: log-loss above (1 + quality_tolerance) x best; max
+       |SMD| main terms more than balance_margin above the best model's or
+       above balance_cap
+     grf_probability_2: log-loss above (1 + quality_tolerance) x best; max
+       |SMD| main terms more than balance_margin above the best model's or
+       above balance_cap
+     grf_probability_3: log-loss above (1 + quality_tolerance) x best; max
+       |SMD| main terms more than balance_margin above the best model's or
+       above balance_cap
+   Treated patients kept by each model: logistic_regression_1 100 %, bart_1
+     100 %, bart_2 100 %, bart_3 100 %, grf_probability_1 100 %,
+     grf_probability_2 100 %, grf_probability_3 100 %
+2. Rank disagreement (primary; study mean over treated): 0.0493
+   Equal weight per algorithm (exploratory): 0.0665
+   Between/within-algorithm ratio (exploratory; median over treated): 10.1.
+     Disagreement between algorithms divided by disagreement between seeds of
+     the same algorithm; with three seeds per algorithm, seed noise alone
+     gives about 0.4.
+   Pair instability (exploratory; study mean over treated): 0.659 of a
+     possible 0.857 with 7 models. It is high whenever many untreated patients
+     have similar scores, even when the models agree.
+   Bootstrap rank instability of the logistic model (descriptive): 0.0462
+3. Balance spread (descriptive; range of max |SMD| main terms over the models
+   in use): 0.297 (0.262 to 0.559)
+Control spread (descriptive; mean scaled over treated): 1.24; 1 = the partners
+   chosen by different models differ as much as a typical matched pair (scale:
+   the matches of logistic_regression_1)
+Your own model (glm, linear.logit): within the balance limit (judged on
+   balance only; it is not one of the compared models); mean absolute rank
+   difference from the models in use: 0.0903
+Matching: 1:1 nearest neighbour on the logit, with replacement, order
+   "largest", caliper none; target: ATT.</code></pre>
+<p><strong>What this output says.</strong> On these data no refitted
+model reaches the balance limit: every one of them has a largest
+standardized mean difference above 0.25 after matching, so fewer than
+two models pass the gate. The function raises an R warning and the
+output opens with it: there is no set of similarly good models to
+compare, and every number describes all seven models. Your own model
+(the <code>glm</code> of the <code>matchit</code> object) is within the
+balance limit, but it is judged on balance only and is an in-sample
+score, while the refitted logistic regression is cross-fitted and judged
+on both fit and balance; your own model is never one of the models
+compared. When the gate keeps none of the refitted models, as here, the
+next step is to revisit the matching design (covariates, caliper,
+replacement), not to read the summaries.</p>
+<p>The result also depends on <code>seed</code>.
+<code><a href="../reference/seed_sensitivity.html">seed_sensitivity()</a></code> reruns the call with several seeds:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/seed_sensitivity.html">seed_sensitivity</a></span><span class="op">(</span><span class="va">matched</span>, seeds <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span><span class="op">)</span></span></code></pre></div>
+<pre><code>Propensity model sensitivity over 3 values of `seed`
+ seed models_kept models_fitted algorithms_kept
+    1           7             7               3
+    2           2             7               1
+    3           3             7               1
+                    kept_by_algorithm fallback rank_disagreement
+ logistic regression 1, BART 3, GRF 3     TRUE           0.04930
+                               BART 2    FALSE           0.00618
+                               BART 3    FALSE           0.00728
+ rank_disagreement_equal_weight pair_instability bootstrap_rank_instability
+                         0.0665            0.659                     0.0462
+                             NA            0.346                     0.0406
+                             NA            0.438                     0.0445
+
+Range over the seeds:
+                        summary minimum maximum
+              rank_disagreement 0.00618  0.0493
+ rank_disagreement_equal_weight 0.06650  0.0665
+               pair_instability 0.34600  0.6590
+     bootstrap_rank_instability 0.04060  0.0462
+Some seeds fell back to every model or kept a single algorithm; their values
+   do not describe a set of similarly good models from several algorithms.
+Report every row; the values depend on the seed as much as shown here.</code></pre>
+<p>With <code>seed = 1</code> every model is used (fallback); with seeds
+2 and 3 the gate keeps only BART fits, so rank disagreement then
+measures only BART’s seed noise (and the function warns). None of the
+three seeds gives a kept set from two or more algorithms. Report every
+row.</p>
+</div>
+<div class="section level2">
+<h2 id="a-simulated-example-where-the-gate-keeps-several-algorithms">A simulated example where the gate keeps several algorithms<a class="anchor" aria-label="anchor" href="#a-simulated-example-where-the-gate-keeps-several-algorithms"></a>
+</h2>
+<p>On lalonde none of the three seeds gave a kept set from two or more
+algorithms. The data below are <strong>simulated</strong> with
+<code><a href="../reference/simulate_example_data.html">simulate_example_data()</a></code> (Scenario 1: six normal covariates,
+a logistic treatment model, 1,000 patients), to show the output when the
+gate keeps models from several algorithms. It was computed once with
+<code>data-raw/simulated_default_output.R</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">simulated</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/simulate_example_data.html">simulate_example_data</a></span><span class="op">(</span>n <span class="op">=</span> <span class="fl">1000</span>, scenario <span class="op">=</span> <span class="st">"S1"</span>, seed <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span> <span class="op">+</span> <span class="va">x4</span> <span class="op">+</span> <span class="va">x5</span> <span class="op">+</span> <span class="va">x6</span>, data <span class="op">=</span> <span class="va">simulated</span><span class="op">)</span></span></code></pre></div>
+<pre><code>Propensity model sensitivity
+1. Quality gate: 7 of 7 models kept (3 algorithms: logistic regression, BART,
+   GRF); log-loss within 5 % of the best; relative balance rule: max |SMD|
+   main terms at most 0.10 above the best model's and at most 0.25 (limit here
+   0.247).
+   Treated patients kept by each kept model: logistic_regression_1 100 %,
+     bart_1 100 %, bart_2 100 %, bart_3 100 %, grf_probability_1 100 %,
+     grf_probability_2 100 %, grf_probability_3 100 %
+2. Rank disagreement (primary; study mean over treated): 0.0588
+   Equal weight per algorithm (exploratory): 0.0678
+   Between/within-algorithm ratio (exploratory; median over treated): 4.12.
+     Disagreement between algorithms divided by disagreement between seeds of
+     the same algorithm; with three seeds per algorithm, seed noise alone
+     gives about 0.4.
+   Pair instability (exploratory; study mean over treated): 0.824 of a
+     possible 0.857 with 7 models. It is high whenever many untreated patients
+     have similar scores, even when the models agree.
+   Bootstrap rank instability of the logistic model (descriptive): 0.0534
+3. Balance spread (descriptive; range of max |SMD| main terms over the kept
+   models): 0.0755 (0.147 to 0.223)
+Control spread (descriptive; mean scaled over treated): 1.02; 1 = the partners
+   chosen by different models differ as much as a typical matched pair (scale:
+   the matches of logistic_regression_1)
+Matching: 1:1 nearest neighbour on the logit, without replacement, order
+   "largest", caliper none; target: ATT.</code></pre>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/seed_sensitivity.html">seed_sensitivity</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span> <span class="op">+</span> <span class="va">x4</span> <span class="op">+</span> <span class="va">x5</span> <span class="op">+</span> <span class="va">x6</span>, seeds <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, data <span class="op">=</span> <span class="va">simulated</span><span class="op">)</span></span></code></pre></div>
+<pre><code>Propensity model sensitivity over 3 values of `seed`
+ seed models_kept models_fitted algorithms_kept
+    1           7             7               3
+    2           6             7               3
+    3           7             7               3
+                    kept_by_algorithm fallback rank_disagreement
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0588
+ logistic regression 1, BART 3, GRF 2    FALSE            0.0579
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0591
+ rank_disagreement_equal_weight pair_instability bootstrap_rank_instability
+                         0.0678            0.824                     0.0534
+                         0.0676            0.800                     0.0628
+                         0.0684            0.830                     0.0544
+
+Range over the seeds:
+                        summary minimum maximum
+              rank_disagreement  0.0579  0.0591
+ rank_disagreement_equal_weight  0.0676  0.0684
+               pair_instability  0.8000  0.8300
+     bootstrap_rank_instability  0.0534  0.0628
+Report every row; the values depend on the seed as much as shown here.</code></pre>
+<p>All three seeds keep models from three algorithms; every row is
+reported.</p>
+</div>
+<div class="section level2">
+<h2 id="the-printed-lines-on-a-faster-run">The printed lines, on a faster run<a class="anchor" aria-label="anchor" href="#the-printed-lines-on-a-faster-run"></a>
+</h2>
+<p>So that this vignette builds quickly, the runs below use the faster
+model set (logistic regression, random forests and gradient boosting),
+fewer seeds and fewer refits. The output has the same structure.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">sensitivity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span></span>
 <span>  <span class="va">matched</span>, algorithms <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"logistic_regression"</span>, <span class="st">"random_forest"</span>, <span class="st">"gradient_boosting"</span><span class="op">)</span>,</span>
 <span>  seeds <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, n_trees <span class="op">=</span> <span class="fl">100</span>, bootstrap_samples <span class="op">=</span> <span class="fl">5</span></span>
 <span><span class="op">)</span></span>
 <span><span class="va">sensitivity</span></span>
 <span><span class="co">#&gt; Propensity model sensitivity</span></span>
-<span><span class="co">#&gt; 1. Quality gate: 3 of 5 models kept (2 algorithms: random forest, gradient boosting); log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and &lt;= 0.25, limit here 0.25</span></span>
+<span><span class="co">#&gt; 1. Quality gate: 3 of 5 models kept (2 algorithms: random forest, gradient</span></span>
+<span><span class="co">#&gt;    boosting); log-loss within 5 % of the best; relative balance rule: max</span></span>
+<span><span class="co">#&gt;    |SMD| main terms at most 0.10 above the best model's and at most 0.25</span></span>
+<span><span class="co">#&gt;    (limit here 0.25).</span></span>
 <span><span class="co">#&gt;    Excluded:</span></span>
-<span><span class="co">#&gt;      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt;      gradient_boosting_1: max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt; 2. Rank disagreement (study mean over treated): 0.0286; median between/within ratio 4.5 (exploratory; near 1 = seed noise)</span></span>
-<span><span class="co">#&gt;    Pair instability across the models in use (study mean over treated; exploratory): 0.524</span></span>
-<span><span class="co">#&gt;    Bootstrap rank instability of the logistic model (study mean over treated): 0.0361</span></span>
-<span><span class="co">#&gt; 3. Balance spread (range of max |SMD| main terms across the models in use): 0.0389 (0.16 to 0.199)</span></span>
-<span><span class="co">#&gt; Mean scaled control spread over treated (descriptive): 1.13 (1 = controls differ as much as a typical match differs from its treated patient)</span></span>
-<span><span class="co">#&gt; Treated kept: 100 % (lowest model in use)</span></span>
-<span><span class="co">#&gt; Reference model (glm, linear.logit): passes the balance gate; mean absolute rank difference from the models in use: 0.104</span></span></code></pre></div>
-<p>How to read the printed lines:</p>
+<span><span class="co">#&gt;      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max</span></span>
+<span><span class="co">#&gt;        |SMD| main terms more than balance_margin above the best model's or</span></span>
+<span><span class="co">#&gt;        above balance_cap</span></span>
+<span><span class="co">#&gt;      gradient_boosting_1: max |SMD| main terms more than balance_margin above</span></span>
+<span><span class="co">#&gt;        the best model's or above balance_cap</span></span>
+<span><span class="co">#&gt;    Treated patients kept by each kept model: random_forest_1 100 %,</span></span>
+<span><span class="co">#&gt;      random_forest_2 100 %, gradient_boosting_2 100 %</span></span>
+<span><span class="co">#&gt; 2. Rank disagreement (primary; study mean over treated): 0.0286</span></span>
+<span><span class="co">#&gt;    Equal weight per algorithm (exploratory): 0.0331</span></span>
+<span><span class="co">#&gt;    Between/within-algorithm ratio (exploratory; median over treated): 4.5</span></span>
+<span><span class="co">#&gt;    Pair instability (exploratory; study mean over treated): 0.524 of a</span></span>
+<span><span class="co">#&gt;      possible 0.667 with 3 models. It is high whenever many untreated patients</span></span>
+<span><span class="co">#&gt;      have similar scores, even when the models agree.</span></span>
+<span><span class="co">#&gt;    Bootstrap rank instability of the logistic model (descriptive): 0.0361</span></span>
+<span><span class="co">#&gt; 3. Balance spread (descriptive; range of max |SMD| main terms over the kept</span></span>
+<span><span class="co">#&gt;    models): 0.0389 (0.16 to 0.199)</span></span>
+<span><span class="co">#&gt; Control spread (descriptive; mean scaled over treated): 1.13; 1 = the partners</span></span>
+<span><span class="co">#&gt;    chosen by different models differ as much as a typical matched pair (scale:</span></span>
+<span><span class="co">#&gt;    the matches of logistic_regression_1)</span></span>
+<span><span class="co">#&gt; Your own model (glm, linear.logit): within the balance limit (judged on</span></span>
+<span><span class="co">#&gt;    balance only; it is not one of the compared models); mean absolute rank</span></span>
+<span><span class="co">#&gt;    difference from the kept models: 0.104</span></span>
+<span><span class="co">#&gt; Matching: 1:1 nearest neighbour on the logit, with replacement, order</span></span>
+<span><span class="co">#&gt;    "largest", caliper none; target: ATT.</span></span></code></pre></div>
+<p>How to read the printed lines, in their order:</p>
 <ul>
 <li>
-<strong>Models in use.</strong> A model enters the “equally
-reasonable” set only if its cross-fitted log-loss is within 5 % of the
-best model and its largest standardized mean difference on main terms
-after matching is at most 0.10 above the best model’s and at most 0.25
-(the relative balance rule; <code>balance_rule = "absolute"</code> uses
-a fixed 0.10 instead). If fewer than two models pass, all models are
-used and the output starts with a warning: the diagnostic is then
-outside the setting where it was evaluated. The line on the quality gate
-states the rule.</li>
+<strong>WARNING (when present).</strong> Fewer than two models
+passed the gate: every model is used, and the values describe all
+models, not a kept set.</li>
 <li>
-<strong>Mean rank disagreement.</strong> For each patient, the
-standard deviation over models of the patient’s percentile rank of the
-propensity score; averaged over treated patients. 0 means every model
-orders the patients the same way. Read it for the study as a whole, not
-per patient (evaluated in a manuscript in preparation).</li>
+<strong>1. Quality gate.</strong> How many models were kept, from
+how many algorithms, and the rule: a model is kept only if its
+cross-fitted log-loss is within 5 % of the best model’s and its largest
+standardized mean difference on main terms after matching is at most
+0.10 above the best model’s and at most 0.25
+(<code>balance_rule = "absolute"</code> uses a fixed 0.10 instead). When
+the kept models are seeds of one algorithm, a block says so (and the
+function warns): the disagreement is then seed noise. The excluded
+models are listed with the reason, then the share of treated patients
+kept by each kept model (below 100 % only with a caliper). In this run
+the refitted logistic regression, the analyst’s usual kind of model, is
+not kept: another algorithm fitted or balanced clearly better here, and
+the summaries describe the kept models only.</li>
 <li>
-<strong>Bootstrap rank instability.</strong> The standard deviation
-of a patient’s percentile rank over bootstrap refits of the logistic
-model, averaged over treated patients. Report it next to rank
-disagreement; the two are evaluated together in a manuscript in
-preparation.</li>
+<strong>2. Rank disagreement (primary).</strong> For each patient,
+the standard deviation over the kept models of the patient’s percentile
+rank (0 to 1) of the propensity score; averaged over treated patients. 0
+means every kept model orders the patients the same way. Read it for the
+study as a whole. It depends on how many seeds each kept algorithm has;
+the next line, <strong>equal weight per algorithm</strong>
+(exploratory), counts each algorithm once.</li>
 <li>
-<strong>Between/within ratio.</strong> Disagreement between
-algorithms divided by disagreement between seeds of the same algorithm.
-Near 1 means the algorithms disagree with each other no more than one
-tree algorithm disagrees with itself: seed noise, not model
-dependence.</li>
+<strong>Between/within-algorithm ratio (exploratory).</strong>
+Disagreement between algorithms divided by disagreement between seeds of
+the same algorithm. With three seeds per algorithm, seed noise alone
+gives a ratio of about 0.4; larger values point to disagreement between
+algorithms beyond seed noise. <code>NA</code> when no kept algorithm has
+two seeds.</li>
 <li>
-<strong>Scaled control spread.</strong> For each treated patient,
-how different the untreated partners chosen by the different models are,
-in units of a typical distance between a treated patient and its
-partner. 1 means the candidate partners differ from each other as much
-as a typical match differs from its treated patient.</li>
+<strong>Pair instability (exploratory).</strong> How often the kept
+models choose different untreated partners, with its maximum for the
+number of kept models. It is high whenever many untreated patients have
+similar scores, even when the models agree.</li>
 <li>
-<strong>Balance range and treated kept.</strong> The spread of the
-maximum standardized mean difference across the models in use, and the
-share of treated patients kept (below 100 % only with a caliper).</li>
+<strong>Bootstrap rank instability (descriptive).</strong> The
+standard deviation of a patient’s percentile rank over bootstrap refits
+of the logistic model, averaged over treated patients: sampling noise of
+one model. Report it next to rank disagreement.</li>
 <li>
-<strong>Reference model.</strong> Your own model from the
-<code>matchit</code> object, kept as a reference. Its log-loss is not
-computed (it is an in-sample score) and it is judged on balance
-only.</li>
+<strong>3. Balance spread (descriptive).</strong> The range of the
+largest standardized mean difference on main terms across the kept
+models.</li>
+<li>
+<strong>Control spread (descriptive).</strong> For each treated
+patient, how different the untreated partners chosen by the different
+models are, in units of a typical distance between a treated patient and
+its partner.</li>
+<li>
+<strong>Your own model.</strong> The model of the
+<code>matchit</code> object, judged on balance only.</li>
+<li>
+<strong>Matching.</strong> The matching settings and the target:
+with a caliper, the estimand is the effect in the retained treated
+patients.</li>
 </ul>
-<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> gives every study-level number with and
-without the quality gate, and the table of models:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> gives every study-level number for the kept
+models and for every model, each with its label, the table of models and
+the reasons each model was or was not kept:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">sensitivity</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 1. Quality gate: 3 of 5 models kept (2 algorithms: random forest, gradient boosting); log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and &lt;= 0.25, limit here 0.25</span></span>
+<span><span class="co">#&gt; Propensity model sensitivity: summary</span></span>
+<span><span class="co">#&gt; 1. Quality gate: 3 of 5 models kept (2 algorithms: random forest, gradient</span></span>
+<span><span class="co">#&gt;    boosting); log-loss within 5 % of the best; relative balance rule: max</span></span>
+<span><span class="co">#&gt;    |SMD| main terms at most 0.10 above the best model's and at most 0.25</span></span>
+<span><span class="co">#&gt;    (limit here 0.25).</span></span>
 <span><span class="co">#&gt;    Excluded:</span></span>
-<span><span class="co">#&gt;      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt;      gradient_boosting_1: max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt; 2. Rank disagreement (study mean over treated): 0.0286; median between/within ratio 4.5 (exploratory; near 1 = seed noise)</span></span>
-<span><span class="co">#&gt;    Pair instability across the models in use (study mean over treated; exploratory): 0.524</span></span>
-<span><span class="co">#&gt;    Bootstrap rank instability of the logistic model (study mean over treated): 0.0361</span></span>
-<span><span class="co">#&gt; 3. Balance spread (range of max |SMD| main terms across the models in use): 0.0389 (0.16 to 0.199)</span></span>
+<span><span class="co">#&gt;      logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max</span></span>
+<span><span class="co">#&gt;        |SMD| main terms more than balance_margin above the best model's or</span></span>
+<span><span class="co">#&gt;        above balance_cap</span></span>
+<span><span class="co">#&gt;      gradient_boosting_1: max |SMD| main terms more than balance_margin above</span></span>
+<span><span class="co">#&gt;        the best model's or above balance_cap</span></span>
+<span><span class="co">#&gt;    Treated patients kept by each kept model: random_forest_1 100 %,</span></span>
+<span><span class="co">#&gt;      random_forest_2 100 %, gradient_boosting_2 100 %</span></span>
+<span><span class="co">#&gt; 2. Rank disagreement (primary; study mean over treated): 0.0286</span></span>
+<span><span class="co">#&gt;    Equal weight per algorithm (exploratory): 0.0331</span></span>
+<span><span class="co">#&gt;    Between/within-algorithm ratio (exploratory; median over treated): 4.5</span></span>
+<span><span class="co">#&gt;    Pair instability (exploratory; study mean over treated): 0.524 of a</span></span>
+<span><span class="co">#&gt;      possible 0.667 with 3 models. It is high whenever many untreated patients</span></span>
+<span><span class="co">#&gt;      have similar scores, even when the models agree.</span></span>
+<span><span class="co">#&gt;    Bootstrap rank instability of the logistic model (descriptive): 0.0361</span></span>
+<span><span class="co">#&gt; 3. Balance spread (descriptive; range of max |SMD| main terms over the kept</span></span>
+<span><span class="co">#&gt;    models): 0.0389 (0.16 to 0.199)</span></span>
+<span><span class="co">#&gt; Control spread (descriptive; mean scaled over treated): 1.13; 1 = the partners</span></span>
+<span><span class="co">#&gt;    chosen by different models differ as much as a typical matched pair (scale:</span></span>
+<span><span class="co">#&gt;    the matches of logistic_regression_1)</span></span>
+<span><span class="co">#&gt; Your own model (glm, linear.logit): within the balance limit (judged on</span></span>
+<span><span class="co">#&gt;    balance only; it is not one of the compared models); mean absolute rank</span></span>
+<span><span class="co">#&gt;    difference from the kept models: 0.104</span></span>
+<span><span class="co">#&gt; Matching: 1:1 nearest neighbour on the logit, with replacement, order</span></span>
+<span><span class="co">#&gt;    "largest", caliper none; target: ATT.</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Study-level numbers (with the quality gate / without it):</span></span>
-<span><span class="co">#&gt;                                         quantity with_gate without_gate</span></span>
-<span><span class="co">#&gt;                            number_of_models_used   3.00000       5.0000</span></span>
-<span><span class="co">#&gt;                   mean_rank_disagreement_treated   0.02860       0.0575</span></span>
-<span><span class="co">#&gt;                       mean_rank_disagreement_all   0.04450       0.0675</span></span>
-<span><span class="co">#&gt;              median_between_within_ratio_treated   4.50000       7.8100</span></span>
-<span><span class="co">#&gt;                  mean_logit_disagreement_treated   0.44800       0.6340</span></span>
-<span><span class="co">#&gt;               mean_control_spread_scaled_treated   1.13000       1.2200</span></span>
-<span><span class="co">#&gt;                p90_control_spread_scaled_treated   1.88000       1.7000</span></span>
-<span><span class="co">#&gt;                               smd_max_main_range   0.03890       0.3510</span></span>
-<span><span class="co">#&gt;                                  smd_max_main_sd   0.01950       0.1450</span></span>
-<span><span class="co">#&gt;                           smd_max_extended_range   0.01800       0.3330</span></span>
-<span><span class="co">#&gt;                              smd_max_extended_sd   0.01000       0.1560</span></span>
-<span><span class="co">#&gt;                            energy_distance_range   0.00792       0.1390</span></span>
-<span><span class="co">#&gt;                               energy_distance_sd   0.00422       0.0591</span></span>
-<span><span class="co">#&gt;                                     ks_max_range   0.00541       0.2220</span></span>
-<span><span class="co">#&gt;                                        ks_max_sd   0.00312       0.0960</span></span>
-<span><span class="co">#&gt;              pair_recurrence_models_mean_treated   0.47600       0.3280</span></span>
-<span><span class="co">#&gt;             pair_instability_models_mean_treated   0.52400       0.6720</span></span>
-<span><span class="co">#&gt;           pair_recurrence_bootstrap_mean_treated   0.62000       0.6200</span></span>
-<span><span class="co">#&gt;                               treated_kept_share   1.00000       1.0000</span></span>
-<span><span class="co">#&gt;                           treated_kept_share_min   1.00000       1.0000</span></span>
-<span><span class="co">#&gt;               bootstrap_rank_instability_treated   0.03610       0.0361</span></span>
-<span><span class="co">#&gt;  reference_mean_absolute_rank_difference_treated   0.10400       0.0886</span></span>
+<span><span class="co">#&gt; Study-level numbers (kept models / every model):</span></span>
+<span><span class="co">#&gt;  quantity                                        label       kept_models</span></span>
+<span><span class="co">#&gt;  number_of_models_used                           count       3          </span></span>
+<span><span class="co">#&gt;  mean_rank_disagreement_treated                  primary     0.0286     </span></span>
+<span><span class="co">#&gt;  mean_rank_disagreement_equal_weight_treated     exploratory 0.0331     </span></span>
+<span><span class="co">#&gt;  mean_rank_disagreement_all                      descriptive 0.0445     </span></span>
+<span><span class="co">#&gt;  median_between_within_ratio_treated             exploratory 4.5        </span></span>
+<span><span class="co">#&gt;  mean_logit_disagreement_treated                 descriptive 0.448      </span></span>
+<span><span class="co">#&gt;  mean_control_spread_scaled_treated              descriptive 1.13       </span></span>
+<span><span class="co">#&gt;  p90_control_spread_scaled_treated               descriptive 1.88       </span></span>
+<span><span class="co">#&gt;  smd_max_main_range                              descriptive 0.0389     </span></span>
+<span><span class="co">#&gt;  smd_max_main_sd                                 descriptive 0.0195     </span></span>
+<span><span class="co">#&gt;  smd_max_extended_range                          descriptive 0.018      </span></span>
+<span><span class="co">#&gt;  smd_max_extended_sd                             descriptive 0.01       </span></span>
+<span><span class="co">#&gt;  energy_distance_range                           descriptive 0.00792    </span></span>
+<span><span class="co">#&gt;  energy_distance_sd                              descriptive 0.00422    </span></span>
+<span><span class="co">#&gt;  ks_max_range                                    descriptive 0.00541    </span></span>
+<span><span class="co">#&gt;  ks_max_sd                                       descriptive 0.00312    </span></span>
+<span><span class="co">#&gt;  pair_recurrence_models_mean_treated             descriptive 0.476      </span></span>
+<span><span class="co">#&gt;  pair_instability_models_mean_treated            exploratory 0.524      </span></span>
+<span><span class="co">#&gt;  pair_recurrence_bootstrap_mean_treated          descriptive 0.62       </span></span>
+<span><span class="co">#&gt;  treated_kept_share                              descriptive 1          </span></span>
+<span><span class="co">#&gt;  treated_kept_share_min                          descriptive 1          </span></span>
+<span><span class="co">#&gt;  bootstrap_rank_instability_treated              descriptive 0.0361     </span></span>
+<span><span class="co">#&gt;  reference_mean_absolute_rank_difference_treated descriptive 0.104      </span></span>
+<span><span class="co">#&gt;  every_model</span></span>
+<span><span class="co">#&gt;  5          </span></span>
+<span><span class="co">#&gt;  0.0575     </span></span>
+<span><span class="co">#&gt;  0.0692     </span></span>
+<span><span class="co">#&gt;  0.0675     </span></span>
+<span><span class="co">#&gt;  7.81       </span></span>
+<span><span class="co">#&gt;  0.634      </span></span>
+<span><span class="co">#&gt;  1.22       </span></span>
+<span><span class="co">#&gt;  1.7        </span></span>
+<span><span class="co">#&gt;  0.351      </span></span>
+<span><span class="co">#&gt;  0.145      </span></span>
+<span><span class="co">#&gt;  0.333      </span></span>
+<span><span class="co">#&gt;  0.156      </span></span>
+<span><span class="co">#&gt;  0.139      </span></span>
+<span><span class="co">#&gt;  0.0591     </span></span>
+<span><span class="co">#&gt;  0.222      </span></span>
+<span><span class="co">#&gt;  0.096      </span></span>
+<span><span class="co">#&gt;  0.328      </span></span>
+<span><span class="co">#&gt;  0.672      </span></span>
+<span><span class="co">#&gt;  0.62       </span></span>
+<span><span class="co">#&gt;  1          </span></span>
+<span><span class="co">#&gt;  1          </span></span>
+<span><span class="co">#&gt;  0.0361     </span></span>
+<span><span class="co">#&gt;  0.0886     </span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Models:</span></span>
+<span><span class="co">#&gt; Models (in_use = kept by the quality gate; for your own model, the row</span></span>
+<span><span class="co">#&gt; `reference`, passed_quality_gate means within the balance limit):</span></span>
 <span><span class="co">#&gt;               model_id                     algorithm logloss smd_max_main</span></span>
 <span><span class="co">#&gt;  logistic_regression_1           logistic_regression   0.412        0.271</span></span>
 <span><span class="co">#&gt;        random_forest_1                 random_forest   0.363        0.160</span></span>
@@ -250,19 +490,29 @@ without the quality gate, and the table of models:</p>
 <span><span class="co">#&gt;   FALSE</span></span>
 <span><span class="co">#&gt;    TRUE</span></span>
 <span><span class="co">#&gt;   FALSE</span></span>
-<span><span class="co">#&gt;                                                                                                                                 gate_note</span></span>
-<span><span class="co">#&gt;  log-loss above (1 + quality_tolerance) x best; max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt;                                                                                                                                    passed</span></span>
-<span><span class="co">#&gt;                                                                                                                                    passed</span></span>
-<span><span class="co">#&gt;                                                 max |SMD| main terms more than balance_margin above the best model's or above balance_cap</span></span>
-<span><span class="co">#&gt;                                                                                                                                    passed</span></span>
-<span><span class="co">#&gt;                       in-sample score from the user's object, not comparable (log-loss not computed); gate judged on balance only: passed</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Quality gate: log-loss within 5 % of the best; relative balance rule: max |SMD| main terms at most 0.1 above the best model's and &lt;= 0.25, limit here 0.25</span></span>
-<span><span class="co">#&gt; Matching: 1:1 nearest neighbour on the logit, ATT, with replacement, order "largest", caliper none</span></span></code></pre></div>
-<p>The per-patient table is available with
-<code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code>:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<span><span class="co">#&gt; Gate notes:</span></span>
+<span><span class="co">#&gt;   logistic_regression_1: log-loss above (1 + quality_tolerance) x best; max</span></span>
+<span><span class="co">#&gt;       |SMD| main terms more than balance_margin above the best model's or</span></span>
+<span><span class="co">#&gt;       above balance_cap</span></span>
+<span><span class="co">#&gt;   random_forest_1: passed</span></span>
+<span><span class="co">#&gt;   random_forest_2: passed</span></span>
+<span><span class="co">#&gt;   gradient_boosting_1: max |SMD| main terms more than balance_margin above the</span></span>
+<span><span class="co">#&gt;       best model's or above balance_cap</span></span>
+<span><span class="co">#&gt;   gradient_boosting_2: passed</span></span>
+<span><span class="co">#&gt;   reference: your own model: an in-sample score from the matchit object, so</span></span>
+<span><span class="co">#&gt;       its log-loss is not comparable and not computed; judged on balance only:</span></span>
+<span><span class="co">#&gt;       within the balance limit; never one of the compared models</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Quality gate: log-loss within 5 % of the best; relative balance rule: max</span></span>
+<span><span class="co">#&gt;    |SMD| main terms at most 0.10 above the best model's and at most 0.25</span></span>
+<span><span class="co">#&gt;    (limit here 0.25).</span></span>
+<span><span class="co">#&gt; Matching: 1:1 nearest neighbour on the logit, with replacement, order</span></span>
+<span><span class="co">#&gt;    "largest", caliper none; target: ATT.</span></span></code></pre></div>
+<p>The per-patient table is available with <code><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame()</a></code>.
+Its columns describe how the disagreement is spread over the patients;
+they are not flags for individual patients.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="va">sensitivity</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;     id treated rank_disagreement rank_disagreement_between</span></span>
 <span><span class="co">#&gt; 1 NSW1       1       0.009951304               0.002303279</span></span>
@@ -297,31 +547,29 @@ without the quality gate, and the table of models:</p>
 <h2 id="the-three-plots">The three plots<a class="anchor" aria-label="anchor" href="#the-three-plots"></a>
 </h2>
 <p><strong>Patients.</strong> One point per treated patient: rank
-disagreement across models (x) against the scaled control spread (y).
-The upper right holds the patients about whom the models disagree
-<em>and</em> who receive different kinds of untreated partners: these
-are the patients that make the design fragile. Colour shows whether the
-patient’s logistic score lies outside the range of the untreated
-patients’ scores.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+disagreement across the kept models (x) against the scaled control
+spread (y). It describes how the disagreement is spread over the treated
+patients; individual points should not be read as flags for individual
+patients. Colour shows whether the patient’s logistic score lies outside
+the range of the untreated patients’ scores.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sensitivity</span>, type <span class="op">=</span> <span class="st">"patients"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="getting-started_files/figure-html/plot-patients-1.png" class="r-plt" alt="" width="80%"></p>
 <p><strong>Models.</strong> The four balance statistics after matching,
-one panel each, one row per model. Hollow points fail the quality gate;
-your own model is drawn in its own colour. A wide spread across models
-means the balance you report depends on the model you happened to
-choose.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+one panel each, one row per model, each axis starting at 0. Filled
+points are kept by the quality gate, hollow points are not; your own
+model is drawn in its own colour. The dashed line is the balance limit
+of the gate.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sensitivity</span>, type <span class="op">=</span> <span class="st">"models"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="getting-started_files/figure-html/plot-models-1.png" class="r-plt" alt="" width="80%"></p>
-<p><strong>Recurrence.</strong> The pair recurrence: the share of models
-(or bootstrap refits) that choose a treated patient’s most common
-untreated partner. One minus its mean over treated patients across
-models is pair instability, printed under rank disagreement: the second
-summary of the same gated model set, exploratory, while rank
-disagreement stays the primary summary. When untreated patients are
-dense the recurrence is often near its floor.</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<p><strong>Recurrence.</strong> The pair recurrence: the share of kept
+models (or bootstrap refits) that choose a treated patient’s most common
+untreated partner. One minus its mean over treated patients across the
+kept models is pair instability (exploratory). Low recurrence is
+expected when untreated patients are dense, even when the models
+agree.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">sensitivity</span>, type <span class="op">=</span> <span class="st">"recurrence"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="getting-started_files/figure-html/plot-recurrence-1.png" class="r-plt" alt="" width="80%"></p>
 </div>
@@ -331,7 +579,7 @@ dense the recurrence is often near its floor.</p>
 <p>The same diagnostic runs on a formula and a data frame; the matching
 options are then arguments (without replacement, order “largest”, no
 caliper by default):</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/propensity_sensitivity.html">propensity_sensitivity</a></span><span class="op">(</span><span class="va">treat</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">educ</span> <span class="op">+</span> <span class="va">race</span> <span class="op">+</span> <span class="va">married</span> <span class="op">+</span> <span class="va">nodegree</span> <span class="op">+</span> <span class="va">re74</span> <span class="op">+</span> <span class="va">re75</span>,</span>
 <span>                       data <span class="op">=</span> <span class="va">lalonde</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -339,17 +587,17 @@ caliper by default):</p>
 <h2 id="what-to-do-with-the-result">What to do with the result<a class="anchor" aria-label="anchor" href="#what-to-do-with-the-result"></a>
 </h2>
 <ol style="list-style-type: decimal">
-<li>Show the models plot next to your balance table.</li>
-<li>Choose the design by balance, never by the outcome.</li>
-<li>If the design is fragile, report the range of estimates across the
-models in a supplement.</li>
-<li>Look at the treated patients in the upper right of the patients
-plot: do they sit in a region of the covariates with few untreated
-patients?</li>
+<li>If a warning appears, revisit the matching design first.</li>
+<li>Rerun with two or three values of <code>seed</code>
+(<code><a href="../reference/seed_sensitivity.html">seed_sensitivity()</a></code>) and report every row.</li>
+<li>Show the models plot next to your balance table, and choose the
+design by balance, never by the outcome.</li>
+<li>Decide before looking at outcomes whether you will report the effect
+estimate under each kept model, and then report all of them.</li>
 </ol>
 <p>The check does not detect unmeasured confounding and is not a fix: it
-tells you how much your matched design depends on one modelling
-choice.</p>
+describes how much your matched design depends on one modelling choice.
+A small value is not evidence that the estimate is unbiased.</p>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

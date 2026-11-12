@@ -45,10 +45,10 @@
 <ul><li>
 <code><a href="../reference/propensity_sensitivity.html">propensity_sensitivity()</a></code> checks, before any outcome is used, how much a 1:1 matched design depends on the choice of propensity model. It takes a formula and data with your matching settings, or an existing <code>MatchIt</code> object, whose settings it reads.</li>
 <li>The model set is logistic regression, BART and the GRF probability forest (three seeds for each tree algorithm: seven models), with cross-fitted scores; every model is matched with the same settings.</li>
-<li>A quality gate keeps only the models that predict treatment about as well as the best model and whose matched groups are about as well balanced, and warns when fewer than two pass.</li>
+<li>A quality gate keeps only the models that predict treatment about as well as the best model and whose matched groups are about as well balanced. An R warning is raised when fewer than two models pass, or when the kept models are seeds of a single algorithm.</li>
 <li>For the kept models it reports rank disagreement (how differently they order the treated patients) and pair instability (how often they choose a different untreated partner), with the bootstrap rank instability of the logistic model and the spread of balance across models.</li>
 <li>
-<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> shows the results, and the articles explain the method step by step with the public right heart catheterization study.</li>
+<code><a href="../reference/seed_sensitivity.html">seed_sensitivity()</a></code> repeats the check with several values of <code>seed</code>; <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> shows the results, and the articles explain the method step by step with the public right heart catheterization study.</li>
 </ul></div>
   </main></div>
 

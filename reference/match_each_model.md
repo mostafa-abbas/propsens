@@ -25,7 +25,8 @@ match_each_model(
   bootstrap_samples = 0,
   cores = 1,
   seed = 1,
-  common_random_order = FALSE
+  common_random_order = FALSE,
+  clip_bootstrap = FALSE
 )
 
 # S3 method for class 'match_set'
@@ -47,8 +48,12 @@ print(x, ...)
 
 - replace:
 
-  `TRUE` (matching with replacement, the primary analysis) or `FALSE`
-  (without replacement, the secondary analysis).
+  `TRUE` (matching with replacement; the default of this function) or
+  `FALSE` (without replacement; the default of
+  [`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  with a formula). Both are supported; see
+  [`vignette("definitions", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/definitions.md)
+  for what each targets.
 
 - ratio:
 
@@ -68,10 +73,11 @@ print(x, ...)
 
 - oracle_logit:
 
-  Simulation only: a numeric vector of length n with the true logit, for
-  example the `true_logit` column of
+  Internal, for simulation studies only: a numeric vector of length n
+  with the true logit, for example the `true_logit` column of
   [`simulate_example_data()`](https://mostafa-abbas.github.io/propsens/reference/simulate_example_data.md).
   When given, one extra entry `oracle` is matched with the same options.
+  Not needed in an analysis.
 
 - bootstrap_samples:
 
@@ -88,11 +94,17 @@ print(x, ...)
 
 - common_random_order:
 
-  Only for `m_order = "random"`: `FALSE` (default) gives each model its
-  own random order; `TRUE` gives every model (and the oracle) the same
+  Internal, for simulation studies only, and only for
+  `m_order = "random"`: `FALSE` (default) gives each model its own
+  random order; `TRUE` gives every model (and the oracle) the same
   random order, so that the models differ only in their distances, not
-  in the order in which treated patients are matched. Used by the
-  matching-order sensitivity of the simulation.
+  in the order in which treated patients are matched.
+
+- clip_bootstrap:
+
+  `FALSE` (default) or `TRUE`: clip the bootstrap refits' scores to
+  `[clip, 1 - clip]` with the model set's `clip`, as the cross-fitted
+  scores are. See the section "Bootstrap block".
 
 - x:
 
@@ -161,28 +173,35 @@ untreated partners.) Each row of a match table carries
 
 With `bootstrap_samples = B > 0` the function draws `B` nonparametric
 row bootstrap samples of the data (one derived seed per sample). A
-sample with fewer than 10 treated or 10 untreated rows is skipped and
-listed in `bootstrap$skipped`. For each sample, logistic regression with
-the model set's formula is fitted in-sample, without cross-fitting:
-main-effects logistic regression barely overfits, and this block
-measures sampling instability only (see
+sample with fewer than 10 treated or 10 untreated rows is skipped,
+listed in `bootstrap$skipped` and counted in a message. For each sample,
+logistic regression with the model set's formula (as written, with any
+interactions or transformations) is fitted in-sample, without
+cross-fitting: this block measures the sampling variability of the
+fitted model, not its out-of-sample accuracy (see
 [`bootstrap_rank_instability()`](https://mostafa-abbas.github.io/propsens/reference/bootstrap_rank_instability.md)).
 The refitted model predicts logits for every ORIGINAL patient; their
-percentile ranks form `bootstrap$rank` (n x B). When a factor level of
-the original data is absent from the sample, the refit uses the
-full-data design matrix and scores those patients as the reference level
-(the rule of the cross-fitted logistic model); the samples concerned are
-listed in `bootstrap$design_rule_samples`. When every level is present
-but prediction from the refitted model fails (a rank-deficient fit that
-did not converge), the refit uses the same design-matrix rule; those
-samples are listed in `bootstrap$prediction_fallback_samples`. No sample
-is skipped for this reason. The sample is then matched with the same
-options, rows are mapped back to original ids, and for every original
-treated patient present in the sample the untreated partner matched to
-its first occurrence is stored in `bootstrap$pairs` (n x B, `NA` when
-absent or unmatched). `bootstrap$present` (n x B, logical) says whether
-each original patient is in each sample. A skipped sample keeps its
-column, filled with `NA`, so that every matrix is n x B.
+percentile ranks form `bootstrap$rank` (n x B). These logits are not
+clipped by default, while the cross-fitted scores are clipped to
+`[clip, 1 - clip]`; under near-separation many cross-fitted scores can
+then share the clipped value (tied ranks) while their bootstrap ranks
+stay distinct. `clip_bootstrap = TRUE` clips the bootstrap scores in the
+same way. The default (`FALSE`) keeps the method as it was studied. When
+a factor level of the original data is absent from the sample, the refit
+uses the full-data design matrix and scores those patients as the
+reference level (the rule of the cross-fitted logistic model); the
+samples concerned are listed in `bootstrap$design_rule_samples`. When
+every level is present but prediction from the refitted model fails (a
+rank-deficient fit that did not converge), the refit uses the same
+design-matrix rule; those samples are listed in
+`bootstrap$prediction_fallback_samples`. No sample is skipped for this
+reason. The sample is then matched with the same options, rows are
+mapped back to original ids, and for every original treated patient
+present in the sample the untreated partner matched to its first
+occurrence is stored in `bootstrap$pairs` (n x B, `NA` when absent or
+unmatched). `bootstrap$present` (n x B, logical) says whether each
+original patient is in each sample. A skipped sample keeps its column,
+filled with `NA`, so that every matrix is n x B.
 
 ## Seeds and parallel runs
 
@@ -190,9 +209,12 @@ Per-task seeds are derived in the main process from `seed`, passed to
 each worker and applied with
 [`withr::with_seed()`](https://withr.r-lib.org/reference/with_seed.html);
 `m_order = "random"` and the bootstrap draws are therefore reproducible
-and identical for `cores = 1` and `cores > 1`. Parallel runs use
+and identical for `cores = 1` and `cores > 1`. The matching tasks, the
+bootstrap draws and the bootstrap matching each have their own family of
+derived seeds, separate from the model fits; with the default order
+`"largest"` matching uses no random numbers. Parallel runs use
 [`parallel::mclapply()`](https://rdrr.io/r/parallel/mclapply.html) on
-Unix and fall back to a serial run on Windows.
+Unix; on Windows the run is serial.
 
 ## Examples
 

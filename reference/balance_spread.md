@@ -1,6 +1,6 @@
 # Study-level balance spread across propensity models
 
-For each model, the model's MatchIt weights from
+Descriptive. For each model, the model's MatchIt weights from
 [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md)
 are passed to cobalt and four balance statistics are computed:
 
@@ -94,12 +94,21 @@ model: `model_id`, `in_use`, `smd_max_main`, `smd_max_extended`,
 
 ## Details
 
-The spread of each statistic over the models in use is its range (max -
+With many covariates `smd_max_extended` is usually driven by sparse
+squares and interactions (a rare level times another covariate) and can
+be large even when every main term is well balanced; report the
+main-terms range (`smd_max_main`) as the headline balance spread. With a
+caliper the standardized mean differences compare the matched treated
+patients with their matched untreated partners, while the energy
+distance (`estimand = "ATT"`) also measures the distance to the whole
+treated group, so it also grows when treated patients are dropped.
+
+The spread of each statistic over the kept models is its range (max -
 min), its standard deviation, and the worst (largest) value with the
 model that produced it. The table of models lists every model of the
 match set with an `in_use` column, so that the balance part of the
-quality gate can read every model; the spread uses the models in use
-only. The oracle entry and the bootstrap block are never used.
+quality gate can read every model; the spread uses the kept models only.
+The oracle entry and the bootstrap block are never used.
 
 ## cobalt settings (verified against cobalt 5.0.0)
 
@@ -118,9 +127,13 @@ on how the weights of the untreated patients are scaled.
 
 ## Quality gate
 
-With `use_gate = TRUE` only the models that passed the log-loss gate are
-used. If fewer than two passed, all models are used and
-`quality_gate_left_fewer_than_two_models` is `TRUE` . The flag reports
+"Kept models" in this help page are the models the function uses: the
+models given in `models` (as
+[`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+passes the models kept by its quality gate), or with `use_gate = TRUE`
+the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and
+`quality_gate_left_fewer_than_two_models` is `TRUE`. The flag reports
 the gate's outcome whatever `use_gate` is.
 
 ## Examples
