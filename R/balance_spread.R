@@ -1,12 +1,19 @@
 #' Study-level balance spread across propensity models
 #'
-#' For each model, the model's MatchIt weights from
+#' Descriptive. For each model, the model's MatchIt weights from
 #' [match_each_model()] are passed to cobalt and four balance statistics are computed:
 #' * `smd_max_main`: maximum absolute standardized mean difference over the main terms;
 #' * `smd_max_extended`: the same over main terms plus squares and 2-way interactions
 #'   (`cobalt::bal.tab(int = interactions, poly = polynomial)`);
 #' * `energy_distance`: `cobalt::bal.compute()` with `stat = "energy.dist"`;
 #' * `ks_max`: `cobalt::bal.compute()` with `stat = "ks.max"`.
+#'
+#' With many covariates `smd_max_extended` is usually driven by sparse squares and interactions
+#' (a rare level times another covariate) and can be large even when every main term is well
+#' balanced; report the main-terms range (`smd_max_main`) as the headline balance spread. With a
+#' caliper the standardized mean differences compare the matched treated patients with their
+#' matched untreated partners, while the energy distance (`estimand = "ATT"`) also measures the
+#' distance to the whole treated group, so it also grows when treated patients are dropped.
 #'
 #' The spread of each statistic over the models in use is its range (max - min), its standard
 #' deviation, and the worst (largest) value with the model that produced it. The table of

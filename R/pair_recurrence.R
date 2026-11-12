@@ -1,8 +1,9 @@
 #' Pair recurrence across models and across bootstrap resamples
 #'
-#' A descriptive index of how often the same untreated partner is chosen, reported next to
-#' pair instability (1 minus the recurrence across models). The across-models and bootstrap
-#' versions are kept separate and are never mixed.
+#' A descriptive index of how often the same untreated partner is chosen. Pair instability
+#' (exploratory), reported by [propensity_sensitivity()], is 1 minus its mean across the kept
+#' models over treated patients; it ranges from 0 to `1 - 1 / M` with `M` kept models. The
+#' across-models and bootstrap versions are kept separate and are never mixed.
 #'
 #' **Across models.** For treated patient i, the modal partner is the untreated partner chosen
 #' most often by the models in use; the recurrence is the share of those models choosing it (see
@@ -17,8 +18,10 @@
 #' present; its expected ceiling is about `1 - 1/e = 0.632`, because a given partner is missing
 #' from about 37 % of bootstrap samples. Skipped resamples are ignored.
 #'
-#' Expect the across-models version near its floor whenever untreated patients are dense: the index
-#' measures crowding more than model dependence.
+#' Expect the across-models version near its floor (pair instability near its maximum) whenever
+#' many untreated patients have similar scores, even when the models agree almost perfectly: the
+#' index measures crowding more than model dependence. A different partner with the same
+#' characteristics is harmless.
 #'
 #' @section Tie rule and denominator rule:
 #' * **Ties.** When two or more untreated partners are chosen equally often, the modal partner is

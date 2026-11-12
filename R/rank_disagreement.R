@@ -1,13 +1,25 @@
 #' Per-patient rank disagreement across propensity models
 #'
 #' For each patient, `d` is the standard deviation over
-#' the models in use of the percentile rank `r_m(i) = rank(logit_m(i)) / n`. The decomposition
-#' separates disagreement between algorithms from seed noise within an algorithm:
-#' `d_between` is the standard deviation over algorithms of the per-algorithm mean rank, and
-#' `d_within` is the square root of the mean over algorithms with at least two seeds of the
-#' variance over seeds (`NA` when no algorithm has two seeds). A ratio `d_between / d_within`
-#' near 1 means the algorithms disagree with themselves as much as with each other: noise, not
-#' model dependence. `d_logit`, the standard deviation of the logits, is the secondary
+#' the models in use of the percentile rank `r_m(i) = rank(logit_m(i)) / n` (0 to 1 scale).
+#' Rank disagreement, the study mean of `d` over treated patients, is the primary summary; it is
+#' a study-level summary, not a per-patient flag.
+#'
+#' Two exploratory companions, which are not a decomposition of `d`
+#' (`d^2` is not `d_between^2 + d_within^2`):
+#' `d_between` is the standard deviation over algorithms of each algorithm's mean rank, so that
+#' every algorithm counts once however many seeds it has; its study mean over treated patients is
+#' reported as "rank disagreement, equal weight per algorithm" (`NA` with one algorithm).
+#' `d_within` is the square root of the mean, over algorithms with at least two seeds, of the
+#' variance over seeds (`NA` when no algorithm has two seeds). The ratio `d_between / d_within` is
+#' the disagreement between algorithms divided by the disagreement between seeds of the same
+#' algorithm. With three seeds per algorithm, seed noise alone gives a ratio of about 0.4;
+#' larger values point to disagreement between algorithms beyond seed noise.
+#'
+#' `d` is a standard deviation over models, so it depends on how many seeds each algorithm
+#' contributes: with the same algorithms, more seeds of one algorithm pull `d` towards that
+#' algorithm's seed noise. Values are comparable only between runs with the same model set
+#' and the same kept algorithms. `d_logit`, the standard deviation of the logits, is a
 #' logit-scale version; calibration differences inflate it without changing who is near whom.
 #' Standard deviations use the n - 1 denominator.
 #'
@@ -25,7 +37,8 @@
 #' @return An object of class `"rank_disagreement"`: a list with `patients` (one row per patient:
 #'   `row`, `treated`, `rank_disagreement`, `rank_disagreement_between`,
 #'   `rank_disagreement_within`, `logit_disagreement`), `summary` (`mean_d_treated`,
-#'   `mean_d_all`, `median_between_within_ratio_treated`, `mean_d_logit_treated`), `models_used`,
+#'   `mean_d_between_treated`, `mean_d_all`, `median_between_within_ratio_treated`,
+#'   `mean_d_logit_treated`), `models_used`,
 #'   `quality_gate_left_fewer_than_two_models` and `settings`.
 #' @examples
 #' data("lalonde", package = "MatchIt")
@@ -79,7 +92,9 @@ rank_disagreement <- function(model_set, use_gate = TRUE, models = NULL) {
   )
   structure(list(
     patients = patients,
-    summary = list(mean_d_treated = mean(d[treated]), mean_d_all = mean(d),
+    summary = list(mean_d_treated = mean(d[treated]),
+                   mean_d_between_treated = mean(d_between[treated]),
+                   mean_d_all = mean(d),
                    median_between_within_ratio_treated = median_ratio,
                    mean_d_logit_treated = mean(d_logit[treated])),
     models_used = ids,
@@ -97,11 +112,15 @@ rank_disagreement <- function(model_set, use_gate = TRUE, models = NULL) {
 print.rank_disagreement <- function(x, ...) {
   print_diagnostic_header("Rank disagreement", x)
   s <- x$summary
-  cat("Mean d over treated: ", format_number(s$mean_d_treated),
+  cat("Mean d over treated (primary): ", format_number(s$mean_d_treated),
       "; over all patients: ", format_number(s$mean_d_all), "\n", sep = "")
-  cat("Median d_between / d_within over treated: ",
-      format_number(s$median_between_within_ratio_treated),
-      " (near 1 = seed noise, not model dependence)\n", sep = "")
+  cat("Equal weight per algorithm, mean d_between over treated (exploratory): ",
+      format_number(s$mean_d_between_treated), "\n", sep = "")
+  cat(wrap_text(paste0("Median d_between / d_within over treated (exploratory): ",
+                       format_number(s$median_between_within_ratio_treated),
+                       ". With three seeds per algorithm, seed noise alone gives about 0.4; ",
+                       "larger values point to disagreement between algorithms.")),
+      sep = "\n")
   cat("Mean d_logit over treated: ", format_number(s$mean_d_logit_treated), "\n", sep = "")
   invisible(x)
 }
@@ -123,4 +142,14 @@ print_diagnostic_header <- function(title, x) {
 format_number <- function(value, digits = 4) {
   if (is.null(value) || length(value) == 0 || is.na(value)) return("NA")
   format(signif(value, digits))
+}
+
+# A tuning constant such as 0.1 printed with two decimals ("0.10"), as in the documentation.
+format_setting <- function(value) {
+  formatC(value, format = "f", digits = max(2, nchar(sub("^[^.]*\\.?", "", format(value)))))
+}
+
+# Lines wrapped to the console width; continuation lines are indented by `exdent` spaces.
+wrap_text <- function(text, indent = 0, exdent = indent + 3, width = getOption("width", 80)) {
+  strwrap(text, width = max(40, width - 1), indent = indent, exdent = exdent)
 }

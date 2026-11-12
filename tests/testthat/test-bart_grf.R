@@ -148,8 +148,8 @@ test_that("propensity_sensitivity() defaults to the model set of the paper", {
       grf_fit(x_train, treatment, x_test, settings$grf_probability)
     }
   )
-  result <- propensity_sensitivity(bart_grf_formula, bart_grf_data, bootstrap_samples = 2,
-                                   replace = FALSE, seed = 2)
+  result <- sensitivity_quietly(bart_grf_formula, bart_grf_data, bootstrap_samples = 2,
+                                replace = FALSE, seed = 2)
   expect_identical(result$settings$algorithms, c("logistic_regression", "bart", "grf_probability"))
   expect_identical(result$models$model_id,
                    c("logistic_regression_1", "bart_1", "bart_2", "bart_3", "grf_probability_1",

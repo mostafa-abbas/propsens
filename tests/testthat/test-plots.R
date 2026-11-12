@@ -1,10 +1,10 @@
 data("lalonde", package = "MatchIt")
 plot_formula <- treat ~ age + educ + race + married + nodegree + re74 + re75
-plot_result <- propensity_sensitivity(plot_formula, data = lalonde,
-                                      algorithms = c("logistic_regression", "random_forest",
-                                                     "gradient_boosting"),
-                                      replace = TRUE, seeds = 1:2, n_trees = 50,
-                                      bootstrap_samples = 5)
+plot_result <- sensitivity_quietly(plot_formula, data = lalonde,
+                                   algorithms = c("logistic_regression", "random_forest",
+                                                  "gradient_boosting"),
+                                   replace = TRUE, seeds = 1:2, n_trees = 50,
+                                   bootstrap_samples = 5)
 
 layer_geoms <- function(plot) {
   vapply(plot$layers, function(layer) class(layer$geom)[1], character(1))
@@ -16,7 +16,7 @@ test_that("each type returns a ggplot object with the expected geoms", {
   recurrence <- plot(plot_result, type = "recurrence")
   for (p in list(patients, models, recurrence)) expect_s3_class(p, "ggplot")
   expect_setequal(layer_geoms(patients), c("GeomVline", "GeomHline", "GeomPoint"))
-  expect_setequal(layer_geoms(models), c("GeomVline", "GeomPoint"))
+  expect_setequal(layer_geoms(models), c("GeomVline", "GeomPoint", "GeomBlank"))
   expect_setequal(layer_geoms(recurrence), c("GeomBar", "GeomVline"))
   expect_error(plot(plot_result, type = "pie"), "should be one of")
 })

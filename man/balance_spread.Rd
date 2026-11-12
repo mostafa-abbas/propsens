@@ -49,7 +49,7 @@ An object of class \code{"balance_spread"}: a list with \code{models} (one row p
 \code{summary}, \code{models_used}, \code{quality_gate_left_fewer_than_two_models} and \code{settings}.
 }
 \description{
-For each model, the model's MatchIt weights from
+Descriptive. For each model, the model's MatchIt weights from
 \code{\link[=match_each_model]{match_each_model()}} are passed to cobalt and four balance statistics are computed:
 \itemize{
 \item \code{smd_max_main}: maximum absolute standardized mean difference over the main terms;
@@ -60,6 +60,13 @@ For each model, the model's MatchIt weights from
 }
 }
 \details{
+With many covariates \code{smd_max_extended} is usually driven by sparse squares and interactions
+(a rare level times another covariate) and can be large even when every main term is well
+balanced; report the main-terms range (\code{smd_max_main}) as the headline balance spread. With a
+caliper the standardized mean differences compare the matched treated patients with their
+matched untreated partners, while the energy distance (\code{estimand = "ATT"}) also measures the
+distance to the whole treated group, so it also grows when treated patients are dropped.
+
 The spread of each statistic over the models in use is its range (max - min), its standard
 deviation, and the worst (largest) value with the model that produced it. The table of
 models lists every model of the match set with an \code{in_use} column, so that the balance part

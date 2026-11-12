@@ -34,8 +34,9 @@ An object of class \code{"control_spread"}: a list with \code{patients} (one row
 \code{quality_gate_left_fewer_than_two_models} and \code{settings} (with the dropped columns).
 }
 \description{
-For each treated patient, collect the distinct
-untreated partners matched to it by the models in use and compute \code{s}, the mean pairwise
+Descriptive. ("Control" in the name means the untreated partner.) For each treated patient,
+collect the distinct untreated partners matched to it by the models in use and compute \code{s},
+the mean pairwise
 Mahalanobis distance between their covariate vectors, with the covariance matrix of all n
 patients. \code{s = 0} when every model picks the same untreated partner, and \code{NA} when the
 patient is unmatched in
@@ -43,6 +44,9 @@ every model. \code{s_scaled = s / D}, where \code{D} is the mean over matched tr
 Mahalanobis distance between a treated patient and its logistic-regression match (the first
 model in use when the match set has no logistic regression model): 1 means the candidate
 partners differ from each other as much as a typical match differs from its treated patient.
+The scale model is the logistic regression match even when logistic regression is not one of
+the models in use; \code{print()} names it. When \code{D} is 0 (every scale pair is identical, for
+example with a very tight caliper) \code{s_scaled} is \code{NA}, not infinite.
 The oracle entry and the bootstrap block are never used.
 }
 \section{Covariates}{

@@ -34,9 +34,10 @@ over treated,
 \code{quality_gate_left_fewer_than_two_models} and \code{settings}.
 }
 \description{
-A descriptive index of how often the same untreated partner is chosen, reported next to
-pair instability (1 minus the recurrence across models). The across-models and bootstrap
-versions are kept separate and are never mixed.
+A descriptive index of how often the same untreated partner is chosen. Pair instability
+(exploratory), reported by \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}, is 1 minus its mean across the kept
+models over treated patients; it ranges from 0 to \code{1 - 1 / M} with \code{M} kept models. The
+across-models and bootstrap versions are kept separate and are never mixed.
 }
 \details{
 \strong{Across models.} For treated patient i, the modal partner is the untreated partner chosen
@@ -52,8 +53,10 @@ ceiling is 1. The uncorrected version divides by the number of resamples in whic
 present; its expected ceiling is about \code{1 - 1/e = 0.632}, because a given partner is missing
 from about 37 \% of bootstrap samples. Skipped resamples are ignored.
 
-Expect the across-models version near its floor whenever untreated patients are dense: the index
-measures crowding more than model dependence.
+Expect the across-models version near its floor (pair instability near its maximum) whenever
+many untreated patients have similar scores, even when the models agree almost perfectly: the
+index measures crowding more than model dependence. A different partner with the same
+characteristics is harmless.
 }
 \section{Tie rule and denominator rule}{
 

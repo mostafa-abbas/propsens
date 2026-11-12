@@ -23,19 +23,22 @@ fit_propensity_models(
 }
 \arguments{
 \item{formula}{A two-sided formula such as \code{treat ~ x1 + x2}. The left-hand side is the
-treatment and must be numeric, coded 0/1. Factor covariates are expanded to dummies for
+treatment: numeric coded 0/1, logical (\code{TRUE} = treated) or a factor with two levels (coded
+as MatchIt does: the level \code{"0"}, or the smaller of two numeric levels, is untreated;
+otherwise the first level is untreated). Factor covariates are expanded to dummies for
 the tree algorithms.}
 
 \item{data}{A data frame holding every variable in \code{formula}. Missing values are an error:
 impute first.}
 
-\item{algorithms}{Which algorithms to fit. The default, \code{c("logistic_regression", "bart", "grf_probability")}, is the set evaluated in a manuscript in preparation and the default of
+\item{algorithms}{Which algorithms to fit. The default, \code{c("logistic_regression", "bart", "grf_probability")}, is also the default of
 \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}: \code{"bart"} (\code{dbarts::bart2}, default priors, 75 trees, 500
 burn-in and 500 kept draws in each of 4 chains, one thread; the score is the
 posterior-mean probability) and \code{"grf_probability"} (\code{grf::probability_forest}, honest
 splitting, 2,000 trees, one thread; out-of-bag predictions when \code{cross_fit = FALSE}), both
 on the dummy-coded design matrix. The faster set, \code{"random_forest"} and
-\code{"gradient_boosting"} with logistic regression, is not part of that evaluation.
+\code{"gradient_boosting"} with logistic regression, needs the packages 'randomForest' and
+'gbm'; it has been studied less than the default set.
 Also exploratory, logistic regression variants on the same design matrix:
 \code{"logistic_splines"} (fitted once; natural cubic splines, \code{splines::ns(df = 3)}, on every
 column with at least 5 distinct values in the training rows whose two interior knots are
@@ -44,7 +47,9 @@ distinct and inside its range, the other columns linear),
 seed) and \code{"lasso_interactions"} (the same on the main effects plus all two-way products of
 the design columns); the lasso variants need the package 'glmnet'.}
 
-\item{seeds}{Integer vector; one tree model per seed. Logistic regression is fitted once.}
+\item{seeds}{\code{1:k}: \code{k} tree models per tree algorithm (default \code{1:3}). Only the number of
+seeds is used, so any other vector is an error; the randomness is set by \code{seed}. Logistic
+regression is fitted once.}
 
 \item{folds}{Number of cross-fitting folds (at least 2).}
 
@@ -82,11 +87,13 @@ the chosen tree count) and \code{call}.
 }
 \description{
 Fits every model of a propensity model set, the tree algorithms once per seed. The default is
-the set evaluated in a manuscript in preparation, the same as in \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}:
-logistic regression with main effects, BART and the GRF probability forest (three seeds
-each), with the same settings. The faster set of logistic regression, random forests and
-gradient boosting is available with
-\code{algorithms = c("logistic_regression", "random_forest", "gradient_boosting")}. Scores are
+the same as in \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}: logistic regression with main effects, BART and the
+GRF probability forest (three seeds each), with the same settings. A faster set of logistic
+regression, random forests and gradient boosting is available with
+\code{algorithms = c("logistic_regression", "random_forest", "gradient_boosting")} (packages
+'randomForest' and 'gbm'). These diagnostics have been studied in the author's simulations and
+benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet.
+Scores are
 cross-fitted by default: the fold assignment
 is stratified by treatment, derived from \code{seed}, and shared by every model; for each fold the
 model is fitted on the other folds and predicts the held-out fold. Probabilities are clipped
@@ -105,10 +112,19 @@ and every fold; when \code{n_trees} is given it is used as is.
 
 \section{Seeds and parallel runs}{
 
-Per-task seeds are derived in the main process from \code{seed} and the model index, passed to
-each worker and applied with \code{\link[withr:with_seed]{withr::with_seed()}}, which restores the random number
-generator state afterwards. Results are identical for \code{cores = 1} and \code{cores > 1}.
-Parallel runs use \code{\link[parallel:mclapply]{parallel::mclapply()}} on Unix and fall back to a serial run on Windows.
+Per-task seeds are derived in the main process from \code{seed} and the model's position in the
+list of models (the order of \code{algorithms}, then the seed index), passed to each worker and
+applied with \code{\link[withr:with_seed]{withr::with_seed()}}, which restores the random number generator state
+afterwards. Results are identical for \code{cores = 1} and \code{cores > 1}. Because the position
+enters the seed, a model's random stream depends on which algorithms come before it:
+\code{random_forest_1} is a different fit with and without logistic regression in \code{algorithms}.
+The fold split also comes from \code{seed}. On small data the scores, and therefore the models
+kept by the quality gate and every summary of \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}, can change
+noticeably with \code{seed}; rerun with two or three values of \code{seed} and report all of them
+(\code{\link[=seed_sensitivity]{seed_sensitivity()}} does this).
+Parallel runs use \code{\link[parallel:mclapply]{parallel::mclapply()}} on Unix; on Windows the run is serial (with one
+message per session). A worker that is stopped (for example, out of memory) stops the run
+with the name of its model.
 }
 
 \section{The "as MatchIt does it" mode}{
@@ -125,9 +141,9 @@ shrink overlap, which is why cross-fitting is the default.
 The models table reports the cross-fitted log-loss, Brier score and c-statistic (rank-based
 AUC). \code{passed_logloss_gate} is \code{TRUE} when the log-loss is at most
 \code{(1 + quality_tolerance)} times the best model's log-loss. The balance part of the
-quality gate (post-match maximum absolute standardized mean difference on main terms at most
-0.10) needs the matches and is applied later by the wrapper
-\code{propensity_sensitivity()}, not here.
+quality gate needs the matches and is applied later by \code{\link[=propensity_sensitivity]{propensity_sensitivity()}}: by
+default a model is kept when its largest post-match absolute standardized mean difference on
+main terms is at most 0.10 above the best model's and at most 0.25 (\code{balance_rule}).
 }
 
 \examples{
@@ -140,11 +156,12 @@ model_set <- fit_propensity_models(
 model_set
 head(model_set$rank)
 \donttest{
-# Default: logistic regression, BART x 3 and GRF x 3 (slower).
-full_set <- fit_propensity_models(
+# The default algorithms (logistic regression, BART, GRF) with one seed per tree algorithm,
+# to keep the example short; an analysis uses the default seeds = 1:3 (seven models).
+default_algorithms <- fit_propensity_models(
   treat ~ age + educ + race + married + nodegree + re74 + re75,
-  data = lalonde
+  data = lalonde, seeds = 1
 )
-full_set$models
+default_algorithms$models
 }
 }

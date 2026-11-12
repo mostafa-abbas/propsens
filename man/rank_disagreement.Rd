@@ -27,18 +27,32 @@ quality-gate set (log-loss and balance) this way.}
 An object of class \code{"rank_disagreement"}: a list with \code{patients} (one row per patient:
 \code{row}, \code{treated}, \code{rank_disagreement}, \code{rank_disagreement_between},
 \code{rank_disagreement_within}, \code{logit_disagreement}), \code{summary} (\code{mean_d_treated},
-\code{mean_d_all}, \code{median_between_within_ratio_treated}, \code{mean_d_logit_treated}), \code{models_used},
+\code{mean_d_between_treated}, \code{mean_d_all}, \code{median_between_within_ratio_treated},
+\code{mean_d_logit_treated}), \code{models_used},
 \code{quality_gate_left_fewer_than_two_models} and \code{settings}.
 }
 \description{
 For each patient, \code{d} is the standard deviation over
-the models in use of the percentile rank \code{r_m(i) = rank(logit_m(i)) / n}. The decomposition
-separates disagreement between algorithms from seed noise within an algorithm:
-\code{d_between} is the standard deviation over algorithms of the per-algorithm mean rank, and
-\code{d_within} is the square root of the mean over algorithms with at least two seeds of the
-variance over seeds (\code{NA} when no algorithm has two seeds). A ratio \code{d_between / d_within}
-near 1 means the algorithms disagree with themselves as much as with each other: noise, not
-model dependence. \code{d_logit}, the standard deviation of the logits, is the secondary
+the models in use of the percentile rank \code{r_m(i) = rank(logit_m(i)) / n} (0 to 1 scale).
+Rank disagreement, the study mean of \code{d} over treated patients, is the primary summary; it is
+a study-level summary, not a per-patient flag.
+}
+\details{
+Two exploratory companions, which are not a decomposition of \code{d}
+(\code{d^2} is not \code{d_between^2 + d_within^2}):
+\code{d_between} is the standard deviation over algorithms of each algorithm's mean rank, so that
+every algorithm counts once however many seeds it has; its study mean over treated patients is
+reported as "rank disagreement, equal weight per algorithm" (\code{NA} with one algorithm).
+\code{d_within} is the square root of the mean, over algorithms with at least two seeds, of the
+variance over seeds (\code{NA} when no algorithm has two seeds). The ratio \code{d_between / d_within} is
+the disagreement between algorithms divided by the disagreement between seeds of the same
+algorithm. With three seeds per algorithm, seed noise alone gives a ratio of about 0.4;
+larger values point to disagreement between algorithms beyond seed noise.
+
+\code{d} is a standard deviation over models, so it depends on how many seeds each algorithm
+contributes: with the same algorithms, more seeds of one algorithm pull \code{d} towards that
+algorithm's seed noise. Values are comparable only between runs with the same model set
+and the same kept algorithms. \code{d_logit}, the standard deviation of the logits, is a
 logit-scale version; calibration differences inflate it without changing who is near whom.
 Standard deviations use the n - 1 denominator.
 }

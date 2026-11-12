@@ -123,9 +123,13 @@ test_that("errors are clear: treatment not 0/1, missing values, folds < 2", {
   bad_treatment <- example_data
   bad_treatment$treat <- bad_treatment$treat + 1
   expect_error(quick_set(bad_treatment), "coded 0/1")
-  factor_treatment <- example_data
-  factor_treatment$treat <- factor(factor_treatment$treat)
-  expect_error(quick_set(factor_treatment), "coded 0/1")
+  three_levels <- example_data
+  three_levels$treat <- factor(ifelse(three_levels$x1 > 1, "c", ifelse(three_levels$treat == 1,
+                                                                       "b", "a")))
+  expect_error(quick_set(three_levels), "exactly two levels")
+  character_treatment <- example_data
+  character_treatment$treat <- as.character(character_treatment$treat)
+  expect_error(quick_set(character_treatment), "coded 0/1")
   with_missing <- example_data
   with_missing$x2[5] <- NA
   expect_error(quick_set(with_missing), "[Ii]mpute first")
@@ -184,8 +188,8 @@ test_that("a factor level missing from a training fold does not stop cross-fitti
   expect_true(all(is.finite(fit$probability)))
   folds <- fit$folds
   train <- folds != folds[7]
-  expect_true(has_unseen_levels(treat ~ x1 + x2, frame, train, !train))
-  expect_false(has_unseen_levels(treat ~ x1, frame, train, !train))
+  expect_true(has_unseen_levels(prepare_model_data(treat ~ x1 + x2, frame), train, !train))
+  expect_false(has_unseen_levels(prepare_model_data(treat ~ x1, frame), train, !train))
   # Without unseen levels the formula path is used and matches glm() exactly.
   plain <- fit_propensity_models(treat ~ x1, frame, algorithms = "logistic_regression",
                                  seeds = 1, seed = 3)

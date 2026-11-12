@@ -10,6 +10,7 @@ S3method(print,pair_recurrence)
 S3method(print,propensity_model_set)
 S3method(print,propensity_sensitivity)
 S3method(print,rank_disagreement)
+S3method(print,seed_sensitivity)
 S3method(print,summary.propensity_sensitivity)
 S3method(summary,propensity_sensitivity)
 export(balance_spread)
@@ -20,28 +21,24 @@ export(match_each_model)
 export(pair_recurrence)
 export(propensity_sensitivity)
 export(rank_disagreement)
+export(seed_sensitivity)
 export(simulate_example_data)
 importFrom(MatchIt,matchit)
-importFrom(cobalt,
-  bal.compute,
-  bal.init,
-  bal.tab
-)
-importFrom(gbm,gbm)
+importFrom(cobalt,bal.compute)
+importFrom(cobalt,bal.init)
+importFrom(cobalt,bal.tab)
 importFrom(ggplot2,.data)
 importFrom(parallel,mclapply)
-importFrom(randomForest,randomForest)
-importFrom(stats,
-  binomial,
-  glm,
-  model.frame,
-  model.matrix,
-  model.response,
-  na.pass,
-  plogis,
-  predict,
-  rbinom,
-  rnorm,
-  uniroot
-)
+importFrom(stats,binomial)
+importFrom(stats,glm)
+importFrom(stats,model.frame)
+importFrom(stats,model.matrix)
+importFrom(stats,model.response)
+importFrom(stats,na.pass)
+importFrom(stats,plogis)
+importFrom(stats,predict)
+importFrom(stats,rbinom)
+importFrom(stats,rnorm)
+importFrom(stats,uniroot)
+importFrom(utils,combn)
 importFrom(withr,with_seed)

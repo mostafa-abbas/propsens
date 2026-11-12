@@ -26,7 +26,7 @@
     1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 2L, 2L, 2L, 2L, 2L, 2L, 
     2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L), levels = c("1", "2"), class = "factor")), row.names = c(NA, 
     32L), class = "data.frame"), recurrence_lines = structure(list(
-        xintercept = c(0.5, 1, 0.6321, 1), PANEL = structure(c(1L, 
-        1L, 2L, 2L), levels = c("1", "2"), class = "factor")), row.names = c(NA, 
-    4L), class = "data.frame"))
+        xintercept = c(0.5, 1, 1), PANEL = structure(c(1L, 1L, 2L
+        ), levels = c("1", "2"), class = "factor")), row.names = c(NA, 
+    3L), class = "data.frame"))
 

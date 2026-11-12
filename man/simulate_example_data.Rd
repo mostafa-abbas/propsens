@@ -19,8 +19,8 @@ simulate_example_data(
 \item{scenario}{One of \code{"S1"}, \code{"S2"}, \code{"S3"}, \code{"S4"}, \code{"S5"}.}
 
 \item{lambda}{Strength of the nonlinear terms in the outcome model: \code{0} means the nonlinear
-terms affect treatment but not the outcome (harmless misspecification); the plan uses
-\code{1.5} for the harmful case.}
+terms affect treatment but not the outcome (harmless misspecification); larger values, such
+as \code{1.5}, make the misspecification harmful for the effect estimate.}
 
 \item{treated_share}{Target mean true propensity, in (0, 1). Default \code{0.20}.}
 
@@ -36,7 +36,8 @@ Attributes \code{scenario}, \code{lambda}, \code{treated_share}, \code{seed}, \c
 record the settings.
 }
 \description{
-Generates one dataset from the data-generating mechanisms of the simulation study.
+Generates one dataset from simulated data-generating mechanisms (with the true propensity
+and the outcome), for examples and for checking the diagnostics where the truth is known.
 Six standard normal covariates \code{x1} to \code{x6}; in Scenario 5
 four binary covariates \code{b1} to \code{b4} are added, \code{b4} rare at 5 \%. The true treatment logit is
 \verb{alpha + X beta + nonlinear(X)}, where \code{alpha} is solved numerically so that the mean true

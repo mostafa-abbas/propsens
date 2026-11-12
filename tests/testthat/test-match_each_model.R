@@ -204,7 +204,7 @@ test_that("5c. bootstrap: a level absent from the resample uses the design-matri
   expect_false(anyNA(boot$rank))
   # Per sample: the design rule is used exactly when the level is absent, and then equals a
   # direct glm.fit on the full-data design with the coefficient of the absent level set to 0;
-  # a sample that has the level gives the same logits under the old (skip) rule.
+  # a sample that has the level is refitted with glm() on the formula.
   prepared <- prepare_model_data(rare_formula, rare)
   n <- nrow(rare)
   for (b in seq_len(8)) {
@@ -212,13 +212,10 @@ test_that("5c. bootstrap: a level absent from the resample uses the design-matri
     resample <- rare[rows, , drop = FALSE]
     rownames(resample) <- NULL
     new <- bootstrap_sample_logits(rare_formula, rare, resample, rows, prepared)
-    old <- bootstrap_sample_logits(rare_formula, rare, resample, rows, prepared,
-                                   unseen_levels_rule = "skip")
     absent <- !1L %in% rows
     expect_identical(new$design_rule, absent)
     expect_identical(b %in% boot$design_rule_samples, absent)
     if (absent) {
-      expect_match(old$skipped, "new levels")
       design <- cbind(1, prepared$design)
       direct <- stats::glm.fit(design[rows, ], prepared$treatment[rows],
                                family = stats::binomial())$coefficients
@@ -226,7 +223,9 @@ test_that("5c. bootstrap: a level absent from the resample uses the design-matri
       expect_equal(new$original_logit, as.numeric(design %*% direct))
       expect_equal(new$resample_logit, new$original_logit[rows])
     } else {
-      expect_identical(new, old)
+      refit <- stats::glm(rare_formula, data = resample, family = stats::binomial())
+      expect_equal(new$original_logit,
+                   as.numeric(stats::predict(refit, newdata = rare, type = "link")))
     }
   }
 })
@@ -259,12 +258,9 @@ test_that("5d. bootstrap: a prediction failure, all levels present, uses the des
     resample <- lalonde[rows, , drop = FALSE]
     rownames(resample) <- NULL
     new <- bootstrap_sample_logits(lalonde_formula, lalonde, resample, rows, prepared)
-    old <- bootstrap_sample_logits(lalonde_formula, lalonde, resample, rows, prepared,
-                                   predict_error_rule = "skip")
     if (b %in% failing) {
       expect_identical(new$path, "design_fallback_predict_error")
       expect_false(new$design_rule)
-      expect_identical(old$skipped, paste0("prediction failed: ", forced_error))
       direct <- stats::glm.fit(design[rows, ], prepared$treatment[rows],
                                family = stats::binomial())$coefficients
       direct[is.na(direct)] <- 0
@@ -274,7 +270,9 @@ test_that("5d. bootstrap: a prediction failure, all levels present, uses the des
                    ignore_attr = TRUE)
     } else {
       expect_identical(new$path, "formula")
-      expect_identical(new, old)
+      refit <- stats::glm(lalonde_formula, data = resample, family = stats::binomial())
+      expect_equal(new$original_logit,
+                   as.numeric(stats::predict(refit, newdata = lalonde, type = "link")))
     }
   }
 })

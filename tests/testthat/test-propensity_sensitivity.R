@@ -14,8 +14,8 @@ analyst_match <- function(replace = TRUE, ...) {
 # wrapper's logic does not depend on the model set; the default set is tested in test-bart_grf.R.
 fast_set <- c("logistic_regression", "random_forest", "gradient_boosting")
 small_run <- function(x, ...) {
-  propensity_sensitivity(x, algorithms = fast_set, seeds = 1:2, n_trees = 50,
-                         bootstrap_samples = 5, ...)
+  sensitivity_quietly(x, algorithms = fast_set, seeds = 1:2, n_trees = 50,
+                      bootstrap_samples = 5, ...)
 }
 with_replacement <- small_run(analyst_match(TRUE))
 # The absolute rule, an option; on lalonde no model reaches 0.10.
@@ -80,9 +80,9 @@ test_that("2. without replacement; with a caliper the treated-kept share is the 
   expect_lt(object_share, 1)
   # cross_fit = FALSE: the logistic model is the analyst's in-sample model, so it must give
   # exactly the analyst's match (the caliper is converted to standard deviations).
-  in_sample <- propensity_sensitivity(analyst, algorithms = fast_set, cross_fit = FALSE, seeds = 1,
-                                      n_trees = 50,
-                                      bootstrap_samples = 0)
+  in_sample <- sensitivity_quietly(analyst, algorithms = fast_set, cross_fit = FALSE, seeds = 1,
+                                   n_trees = 50,
+                                   bootstrap_samples = 0)
   expect_equal(in_sample$settings$caliper_sd, 0.1)
   models <- in_sample$models
   expect_equal(models$treated_kept[models$model_id == "reference"], object_share)
@@ -135,15 +135,19 @@ test_that("4. the reference row: log-loss NA, never in use, flagged when it fail
   # On lalonde the analyst's match fails the 0.10 balance gate: a real failing case.
   expect_gt(reference$smd_max_main, 0.10)
   expect_false(reference$passed_quality_gate)
-  expect_match(reference$gate_note, "reference model outside the equally-reasonable set")
-  expect_true(with_replacement$summary$reference_model_outside_equally_reasonable_set)
+  expect_match(reference$gate_note, "not kept by the gate (its balance is above the limit)",
+               fixed = TRUE)
+  expect_true(with_replacement$summary$reference_model_not_kept)
+  expect_match(printed_text(with_replacement),
+               "Your own model (glm, linear.logit): not kept by the gate", fixed = TRUE)
   passing <- reference_model_row(
     list(label = "glm, linear.logit", rank = rep(0.5, nrow(lalonde)),
          weights = as.numeric(analyst$weights)),
     lalonde_covariates, lalonde$treat, balance_limit = 1, columns = names(models)
   )
   expect_true(passing$passed_quality_gate)
-  expect_no_match(passing$gate_note, "outside the equally-reasonable set")
+  expect_match(passing$gate_note, "kept by the gate (its balance is within the limit)",
+               fixed = TRUE)
 
   reference_rank <- rank(as.numeric(analyst$distance)) / nrow(lalonde)
   ranks <- with_replacement$components$model_set$rank
@@ -227,8 +231,8 @@ test_that("5b. the relative balance rule: margin above the best model, and a cap
   expect_identical(fitted$passed_balance_gate, fitted$smd_max_main <= settings$balance_limit)
   expect_output(print(with_replacement), "relative balance rule")
   expect_output(print(summary(with_replacement)), "relative balance rule")
-  expect_output(print(with_replacement_absolute),
-                "absolute balance rule: max \\|SMD\\| main terms <= 0.1")
+  expect_match(printed_text(with_replacement_absolute),
+               "absolute balance rule: max |SMD| main terms at most 0.10", fixed = TRUE)
   expect_output(print(summary(with_replacement_absolute)), "absolute balance rule")
   expect_error(small_run(analyst_match(TRUE), balance_margin = -1), "balance_margin")
 
@@ -251,9 +255,9 @@ test_that("5b. the relative balance rule: margin above the best model, and a cap
 
 test_that("6. cross_fit = FALSE works and gives in-sample logistic scores", {
   analyst <- analyst_match(TRUE)
-  in_sample <- propensity_sensitivity(analyst, algorithms = fast_set, cross_fit = FALSE, seeds = 1,
-                                      n_trees = 50,
-                                      bootstrap_samples = 0)
+  in_sample <- sensitivity_quietly(analyst, algorithms = fast_set, cross_fit = FALSE, seeds = 1,
+                                   n_trees = 50,
+                                   bootstrap_samples = 0)
   expect_false(in_sample$settings$cross_fit)
   expect_equal(unname(in_sample$patients$logistic_score), unname(analyst$distance),
                tolerance = 1e-6)
@@ -284,7 +288,9 @@ test_that("8. print, summary and as.data.frame", {
   rounded_run <- small_run(rounded_match)
   expect_snapshot(print(rounded_run))
   expect_snapshot(print(summary(rounded_run)))
-  expect_identical(as.data.frame(with_replacement), with_replacement$patients)
+  as_frame <- as.data.frame(with_replacement)
+  expect_equal(as_frame, with_replacement$patients, ignore_attr = "note")
+  expect_match(attr(as_frame, "note"), "not flags for individual patients")
   expect_named(with_replacement$patients,
                c("id", "treated", "rank_disagreement", "rank_disagreement_between",
                  "rank_disagreement_within", "logit_disagreement", "control_spread",
@@ -314,7 +320,7 @@ test_that("the four diagnostics accept a set of models", {
 test_that("9. timing: lalonde, package defaults, one core, under 60 seconds", {
   skip_unless_timing_tests()
   analyst <- analyst_match(TRUE)
-  timing <- system.time(result <- propensity_sensitivity(analyst, cores = 1))
+  timing <- system.time(result <- sensitivity_quietly(analyst, cores = 1))
   expect_elapsed_under(timing, 60, "propensity_sensitivity, lalonde, defaults")
   expect_s3_class(result, "propensity_sensitivity")
   expect_equal(nrow(result$models), 8)
@@ -323,32 +329,42 @@ test_that("9. timing: lalonde, package defaults, one core, under 60 seconds", {
 test_that("print and summary lead with gate composition, rank disagreement, balance spread", {
   printed <- utils::capture.output(print(with_replacement))
   summarised <- utils::capture.output(print(summary(with_replacement)))
+  expect_identical(summarised[1], "Propensity model sensitivity: summary")
   for (lines in list(printed, summarised)) {
     gate <- grep("^1\\. Quality gate:", lines)
     rank <- grep("^2\\. Rank disagreement", lines)
     spread <- grep("^3\\. Balance spread", lines)
     expect_length(gate, 1)
     expect_true(gate < rank && rank < spread)
-    # The composition names the number of algorithms in use and lists the excluded models.
+    # The composition names the number of algorithms kept and lists the excluded models.
     used_ids <- with_replacement$summary$models_used
     in_use <- with_replacement$models[with_replacement$models$model_id %in% used_ids, ]
     expect_match(lines[gate], paste0(length(unique(in_use$algorithm)), " algorithm"))
     excluded <- setdiff(with_replacement$models$model_id[!with_replacement$models$is_reference],
                         with_replacement$summary$models_used)
     for (id in excluded) expect_true(any(grepl(paste0("^     ", id, ": "), lines)))
+    # Every printed line fits the console width.
+    expect_true(all(nchar(lines[seq_len(spread)]) <= getOption("width")))
   }
   table <- with_replacement$summary$table
-  expect_match(printed[grep("^3\\. Balance spread", printed)],
-               format_number(table$with_gate[table$quantity == "smd_max_main_range"], 3),
+  joined <- printed_text(with_replacement)
+  expect_match(joined, paste0("3. Balance spread (descriptive; range of max |SMD| main terms ",
+                              "over the kept models): ",
+                              format_number(table$with_gate[table$quantity ==
+                                                              "smd_max_main_range"], 3)),
                fixed = TRUE)
+  # The share of treated kept by each kept model is shown.
+  for (id in with_replacement$summary$models_used) {
+    expect_match(joined, paste0(id, "\\s+100 %"))
+  }
 })
 
 test_that("the fitted model set is returned, equal to fit_propensity_models()", {
   # Callers (for example, other packages) reuse the scores without refitting.
-  sensitivity <- propensity_sensitivity(treat ~ age + educ + race + married + nodegree + re74 +
-                                          re75, data = lalonde, seeds = 1, n_trees = 50,
-                                        algorithms = fast_set, bootstrap_samples = 2,
-                                        replace = FALSE, seed = 3)
+  sensitivity <- sensitivity_quietly(treat ~ age + educ + race + married + nodegree + re74 +
+                                       re75, data = lalonde, seeds = 1, n_trees = 50,
+                                     algorithms = fast_set, bootstrap_samples = 2,
+                                     replace = FALSE, seed = 3)
   direct <- fit_propensity_models(treat ~ age + educ + race + married + nodegree + re74 + re75,
                                   lalonde, seeds = 1, n_trees = 50, seed = 3,
                                   algorithms = fast_set)
@@ -361,16 +377,20 @@ test_that("the fitted model set is returned, equal to fit_propensity_models()", 
 
 test_that("the gate fallback is shown first, in plain words", {
   expect_true(with_replacement_absolute$quality_gate_left_fewer_than_two_models)
-  warning_text <- paste("WARNING: fewer than two models passed the quality gate; the diagnostic",
-                        "is outside the setting where it was evaluated.")
   printed <- utils::capture.output(print(with_replacement_absolute))
   summarised <- utils::capture.output(print(summary(with_replacement_absolute)))
-  expect_identical(printed[2], warning_text)
-  expect_identical(summarised[1], warning_text)
+  expect_match(printed[2], "^WARNING: fewer than two models passed the quality gate, so there")
+  expect_match(summarised[2], "^WARNING: fewer than two models passed the quality gate")
+  fallback_words <- paste("there is no set of similarly good models to compare. Every model is",
+                          "used below; read the values as a description of all models, not of",
+                          "a kept set.")
+  expect_match(printed_text(with_replacement_absolute), fallback_words, fixed = TRUE)
   expect_lt(grep("^WARNING", printed), grep("^1\\. Quality gate:", printed))
   expect_false(with_replacement$quality_gate_left_fewer_than_two_models)
   expect_false(any(grepl("WARNING", utils::capture.output(print(with_replacement)))))
   expect_false(any(grepl("WARNING", utils::capture.output(print(summary(with_replacement))))))
+  # With the fallback the summary prints one column (every model is used).
+  expect_true(any(grepl("every model is used, so one column", summarised, fixed = TRUE)))
 })
 
 test_that("bootstrap rank instability is in the output, next to rank disagreement", {
@@ -384,13 +404,14 @@ test_that("bootstrap rank instability is in the output, next to rank disagreemen
   for (lines in list(utils::capture.output(print(with_replacement)),
                      utils::capture.output(print(summary(with_replacement))))) {
     rank <- grep("^2\\. Rank disagreement", lines)
-    # Pair instability sits right under rank disagreement, the bootstrap line after it.
-    expect_match(lines[rank + 2], "Bootstrap rank instability of the logistic model")
-    expect_match(lines[rank + 2], format_number(value, 3), fixed = TRUE)
+    spread <- grep("^3\\. Balance spread", lines)
+    bootstrap <- grep("Bootstrap rank instability of the logistic model \\(descriptive\\)", lines)
+    expect_true(rank < bootstrap && bootstrap < spread)
+    expect_match(lines[bootstrap], format_number(value, 3), fixed = TRUE)
   }
 })
 
-test_that("pair instability = 1 - pair recurrence, in the table and under rank", {
+test_that("pair instability = 1 - pair recurrence, shown with its maximum", {
   table <- with_replacement$summary$table
   instability <- table[table$quantity == "pair_instability_models_mean_treated", ]
   recurrence <- table[table$quantity == "pair_recurrence_models_mean_treated", ]
@@ -401,17 +422,22 @@ test_that("pair instability = 1 - pair recurrence, in the table and under rank",
   patients <- with_replacement$patients
   expect_equal(instability$with_gate,
                1 - mean(patients$pair_recurrence_models[patients$treated == 1]))
+  n_kept <- length(with_replacement$summary$models_used)
+  expect_equal(with_replacement$summary$pair_instability_maximum, 1 - 1 / n_kept)
   for (lines in list(utils::capture.output(print(with_replacement)),
                      utils::capture.output(print(summary(with_replacement))))) {
-    rank <- grep("^2\\. Rank disagreement", lines)
-    expect_match(lines[rank + 1], "Pair instability across the models in use")
-    expect_match(lines[rank + 1], format_number(instability$with_gate, 3), fixed = TRUE)
+    joined <- gsub("\\s+", " ", paste(lines, collapse = " "))
+    expect_match(joined, paste0("Pair instability (exploratory; study mean over treated): ",
+                                format_number(instability$with_gate, 3), " of a possible ",
+                                format_number(1 - 1 / n_kept, 3), " with ", n_kept, " models"),
+                 fixed = TRUE)
+    expect_lt(grep("Equal weight per algorithm", lines), grep("^   Pair instability", lines))
   }
 })
 
 test_that("without bootstrap refits the instability is NA and printing still works", {
-  none <- propensity_sensitivity(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
-                                 n_trees = 50, bootstrap_samples = 0, replace = FALSE)
+  none <- sensitivity_quietly(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
+                              n_trees = 50, bootstrap_samples = 0, replace = FALSE)
   expect_null(none$bootstrap_rank_instability)
   table <- none$summary$table
   expect_true(is.na(table$with_gate[table$quantity == "bootstrap_rank_instability_treated"]))
@@ -421,11 +447,11 @@ test_that("without bootstrap refits the instability is NA and printing still wor
 
 test_that("with a formula the default is 1:1 matching without replacement", {
   expect_false(eval(formals(propensity_sensitivity)$replace))
-  by_default <- propensity_sensitivity(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
-                                       n_trees = 50, bootstrap_samples = 0, seed = 5)
+  by_default <- sensitivity_quietly(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
+                                    n_trees = 50, bootstrap_samples = 0, seed = 5)
   expect_false(by_default$settings$replace)
-  explicit <- propensity_sensitivity(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
-                                     n_trees = 50, bootstrap_samples = 0, replace = FALSE, seed = 5)
+  explicit <- sensitivity_quietly(lalonde_formula, lalonde, algorithms = fast_set, seeds = 1,
+                                  n_trees = 50, bootstrap_samples = 0, replace = FALSE, seed = 5)
   expect_equal(by_default$patients, explicit$patients)
   # A matchit object keeps its own option.
   expect_true(with_replacement$settings$replace)

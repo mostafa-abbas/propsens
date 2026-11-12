@@ -1,11 +1,13 @@
 #' Fit the propensity model set with cross-fitting
 #'
 #' Fits every model of a propensity model set, the tree algorithms once per seed. The default is
-#' the set evaluated in a manuscript in preparation, the same as in [propensity_sensitivity()]:
-#' logistic regression with main effects, BART and the GRF probability forest (three seeds
-#' each), with the same settings. The faster set of logistic regression, random forests and
-#' gradient boosting is available with
-#' `algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`. Scores are
+#' the same as in [propensity_sensitivity()]: logistic regression with main effects, BART and the
+#' GRF probability forest (three seeds each), with the same settings. A faster set of logistic
+#' regression, random forests and gradient boosting is available with
+#' `algorithms = c("logistic_regression", "random_forest", "gradient_boosting")` (packages
+#' 'randomForest' and 'gbm'). These diagnostics have been studied in the author's simulations and
+#' benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet.
+#' Scores are
 #' cross-fitted by default: the fold assignment
 #' is stratified by treatment, derived from `seed`, and shared by every model; for each fold the
 #' model is fitted on the other folds and predicts the held-out fold. Probabilities are clipped
@@ -21,10 +23,19 @@
 #' and every fold; when `n_trees` is given it is used as is.
 #'
 #' @section Seeds and parallel runs:
-#' Per-task seeds are derived in the main process from `seed` and the model index, passed to
-#' each worker and applied with [withr::with_seed()], which restores the random number
-#' generator state afterwards. Results are identical for `cores = 1` and `cores > 1`.
-#' Parallel runs use [parallel::mclapply()] on Unix and fall back to a serial run on Windows.
+#' Per-task seeds are derived in the main process from `seed` and the model's position in the
+#' list of models (the order of `algorithms`, then the seed index), passed to each worker and
+#' applied with [withr::with_seed()], which restores the random number generator state
+#' afterwards. Results are identical for `cores = 1` and `cores > 1`. Because the position
+#' enters the seed, a model's random stream depends on which algorithms come before it:
+#' `random_forest_1` is a different fit with and without logistic regression in `algorithms`.
+#' The fold split also comes from `seed`. On small data the scores, and therefore the models
+#' kept by the quality gate and every summary of [propensity_sensitivity()], can change
+#' noticeably with `seed`; rerun with two or three values of `seed` and report all of them
+#' ([seed_sensitivity()] does this).
+#' Parallel runs use [parallel::mclapply()] on Unix; on Windows the run is serial (with one
+#' message per session). A worker that is stopped (for example, out of memory) stops the run
+#' with the name of its model.
 #'
 #' @section The "as MatchIt does it" mode:
 #' With `cross_fit = FALSE` the scores are in-sample predictions for logistic regression and
@@ -37,23 +48,26 @@
 #' The models table reports the cross-fitted log-loss, Brier score and c-statistic (rank-based
 #' AUC). `passed_logloss_gate` is `TRUE` when the log-loss is at most
 #' `(1 + quality_tolerance)` times the best model's log-loss. The balance part of the
-#' quality gate (post-match maximum absolute standardized mean difference on main terms at most
-#' 0.10) needs the matches and is applied later by the wrapper
-#' `propensity_sensitivity()`, not here.
+#' quality gate needs the matches and is applied later by [propensity_sensitivity()]: by
+#' default a model is kept when its largest post-match absolute standardized mean difference on
+#' main terms is at most 0.10 above the best model's and at most 0.25 (`balance_rule`).
 #'
 #' @param formula A two-sided formula such as `treat ~ x1 + x2`. The left-hand side is the
-#'   treatment and must be numeric, coded 0/1. Factor covariates are expanded to dummies for
+#'   treatment: numeric coded 0/1, logical (`TRUE` = treated) or a factor with two levels (coded
+#'   as MatchIt does: the level `"0"`, or the smaller of two numeric levels, is untreated;
+#'   otherwise the first level is untreated). Factor covariates are expanded to dummies for
 #'   the tree algorithms.
 #' @param data A data frame holding every variable in `formula`. Missing values are an error:
 #'   impute first.
 #' @param algorithms Which algorithms to fit. The default, `c("logistic_regression", "bart",
-#'   "grf_probability")`, is the set evaluated in a manuscript in preparation and the default of
+#'   "grf_probability")`, is also the default of
 #'   [propensity_sensitivity()]: `"bart"` (`dbarts::bart2`, default priors, 75 trees, 500
 #'   burn-in and 500 kept draws in each of 4 chains, one thread; the score is the
 #'   posterior-mean probability) and `"grf_probability"` (`grf::probability_forest`, honest
 #'   splitting, 2,000 trees, one thread; out-of-bag predictions when `cross_fit = FALSE`), both
 #'   on the dummy-coded design matrix. The faster set, `"random_forest"` and
-#'   `"gradient_boosting"` with logistic regression, is not part of that evaluation.
+#'   `"gradient_boosting"` with logistic regression, needs the packages 'randomForest' and
+#'   'gbm'; it has been studied less than the default set.
 #'   Also exploratory, logistic regression variants on the same design matrix:
 #'   `"logistic_splines"` (fitted once; natural cubic splines, `splines::ns(df = 3)`, on every
 #'   column with at least 5 distinct values in the training rows whose two interior knots are
@@ -61,7 +75,9 @@
 #'   `"lasso"` (`glmnet::cv.glmnet`, binomial, lambda.min from 5 internal folds that differ by
 #'   seed) and `"lasso_interactions"` (the same on the main effects plus all two-way products of
 #'   the design columns); the lasso variants need the package 'glmnet'.
-#' @param seeds Integer vector; one tree model per seed. Logistic regression is fitted once.
+#' @param seeds `1:k`: `k` tree models per tree algorithm (default `1:3`). Only the number of
+#'   seeds is used, so any other vector is an error; the randomness is set by `seed`. Logistic
+#'   regression is fitted once.
 #' @param folds Number of cross-fitting folds (at least 2).
 #' @param cross_fit `TRUE` for out-of-fold scores (default); `FALSE` for the "as MatchIt does
 #'   it" mode described above.
@@ -91,12 +107,13 @@
 #' model_set
 #' head(model_set$rank)
 #' \donttest{
-#' # Default: logistic regression, BART x 3 and GRF x 3 (slower).
-#' full_set <- fit_propensity_models(
+#' # The default algorithms (logistic regression, BART, GRF) with one seed per tree algorithm,
+#' # to keep the example short; an analysis uses the default seeds = 1:3 (seven models).
+#' default_algorithms <- fit_propensity_models(
 #'   treat ~ age + educ + race + married + nodegree + re74 + re75,
-#'   data = lalonde
+#'   data = lalonde, seeds = 1
 #' )
-#' full_set$models
+#' default_algorithms$models
 #' }
 #' @importFrom withr with_seed
 #' @importFrom stats model.frame model.response model.matrix na.pass binomial predict
@@ -113,9 +130,7 @@ fit_propensity_models <- function(formula, data,
   check_single_integer(seed, "seed")
   check_single_integer(folds, "folds", minimum = 2)
   check_single_integer(cores, "cores", minimum = 1)
-  if (!is.numeric(seeds) || length(seeds) < 1 || anyNA(seeds) || any(seeds != round(seeds))) {
-    stop("`seeds` must be a vector of integers with at least one element.")
-  }
+  check_seeds(seeds)
   if (!is.logical(cross_fit) || length(cross_fit) != 1 || is.na(cross_fit)) {
     stop("`cross_fit` must be TRUE or FALSE.")
   }
@@ -127,6 +142,7 @@ fit_propensity_models <- function(formula, data,
   if (!is.numeric(clip) || length(clip) != 1 || is.na(clip) || clip <= 0 || clip >= 0.5) {
     stop("`clip` must be a single number strictly between 0 and 0.5.")
   }
+  data <- treatment_as_0_1(formula, data)
   prepared <- prepare_model_data(formula, data)
   n <- prepared$n
 
@@ -162,25 +178,15 @@ fit_propensity_models <- function(formula, data,
   fit_task <- function(spec) {
     fit_one_model(spec, prepared, data, formula, fold_id, folds, cross_fit, tree_settings)
   }
-  use_parallel <- cores > 1 && .Platform$OS.type == "unix"
-  if (use_parallel) {
-    results <- parallel::mclapply(specs, fit_task, mc.cores = cores, mc.preschedule = FALSE,
-                                  mc.set.seed = FALSE)
-    failed <- vapply(results, inherits, logical(1), what = "try-error")
-    if (any(failed)) {
-      first_failure <- results[[which(failed)[1]]]
-      stop("A model task failed: ", conditionMessage(attr(first_failure, "condition")))
-    }
-  } else {
-    results <- lapply(specs, fit_task)
-  }
-
   model_ids <- vapply(specs, `[[`, "", "model_id")
+  results <- run_tasks(specs, fit_task, cores, task_names = model_ids, what = "model fit")
+
   # per model and fold, the logistic prediction path and glm's warnings.
   logistic_log <- do.call(rbind, lapply(seq_along(results), function(i) {
     log <- attr(results[[i]], "logistic_log")
     if (is.null(log)) NULL else data.frame(model_id = model_ids[i], log, stringsAsFactors = FALSE)
   }))
+  warn_logistic_folds(logistic_log)
   probability <- do.call(cbind, results)
   probability <- pmin(pmax(probability, clip), 1 - clip)
   dimnames(probability) <- list(NULL, model_ids)
@@ -269,16 +275,23 @@ prepare_model_data <- function(formula, data) {
     stop("Missing values in the treatment or the covariates. Impute first; ",
          "fit_propensity_models() does not handle missing values.")
   }
-  treatment <- model.response(model_frame)
+  treatment <- coerce_treatment(model.response(model_frame))
   if (!is.numeric(treatment) || !all(treatment %in% c(0, 1))) {
-    stop("The treatment (left-hand side of `formula`) must be numeric and coded 0/1 ",
-         "(0 = control, 1 = treated). Recode it first.")
+    stop("The treatment (left-hand side of `formula`) must be numeric coded 0/1 ",
+         "(0 = untreated, 1 = treated), logical, or a factor with two levels. Recode it first.")
   }
   if (length(unique(treatment)) < 2) stop("The treatment must contain both 0 and 1.")
   design <- model.matrix(formula, model_frame)
   design <- design[, colnames(design) != "(Intercept)", drop = FALSE]
   if (ncol(design) == 0) stop("`formula` must contain at least one covariate.")
-  list(treatment = as.integer(treatment), design = design, n = nrow(design), p = ncol(design))
+  # Factor and character columns of the model frame (after factor() and other calls inside the
+  # formula), for the check of levels absent from a fold or a bootstrap sample.
+  covariate_frame <- model_frame[-1]
+  level_columns <- covariate_frame[vapply(covariate_frame, function(column) {
+    is.factor(column) || is.character(column)
+  }, logical(1))]
+  list(treatment = as.integer(treatment), design = design, n = nrow(design), p = ncol(design),
+       level_columns = level_columns)
 }
 
 derive_seed <- function(seed, index) {
@@ -327,7 +340,8 @@ build_model_specs <- function(algorithms, seeds, seed, n_trees) {
 
 choose_n_trees <- function(design, treatment, n_trees_seed, gbm_settings) {
   frame <- data.frame(treatment = treatment, design, check.names = TRUE)
-  best <- with_task_seed(n_trees_seed, {
+  # gbm's cross-validation attaches gbm, which prints a start-up message; it is suppressed.
+  best <- with_task_seed(n_trees_seed, suppressPackageStartupMessages({
     invisible(utils::capture.output(
       fit <- gbm::gbm(treatment ~ ., data = frame, distribution = "bernoulli",
                       n.trees = gbm_settings$n_trees_cap,
@@ -336,7 +350,7 @@ choose_n_trees <- function(design, treatment, n_trees_seed, gbm_settings) {
                       cv.folds = gbm_settings$cv_folds, n.cores = 1, verbose = FALSE)
     ))
     gbm::gbm.perf(fit, method = "cv", plot.it = FALSE)
-  })
+  }))
   best <- as.integer(best)
   if (best >= gbm_settings$n_trees_cap) {
     warning("The cross-validated tree count hit the cap of ", gbm_settings$n_trees_cap,
@@ -382,8 +396,11 @@ predict_held_out <- function(spec, prepared, data, formula, train, test, tree_se
                                                  warned, fixed = TRUE)),
                    stringsAsFactors = FALSE)
       }
-      note <- function(w) warned <<- c(warned, conditionMessage(w))
-      if (has_unseen_levels(formula, data, train, test)) {
+      note <- function(w) {
+        warned <<- c(warned, conditionMessage(w))
+        if (is_known_glm_warning(w)) invokeRestart("muffleWarning")
+      }
+      if (has_unseen_levels(prepared, train, test)) {
         probability <- withCallingHandlers(logistic_on_design(prepared, train, test),
                                            warning = note)
         attr(probability, "logistic_log") <- log_row("design_unseen_levels")
@@ -441,16 +458,36 @@ predict_held_out <- function(spec, prepared, data, formula, train, test, tree_se
   )
 }
 
-# TRUE when a factor or character covariate takes, in the held-out rows, a level that the
-# training rows lack (rare levels and cross-fitting). glm() drops such levels and predict() then
-# stops; logistic_on_design() is used instead. Otherwise the formula path is kept unchanged.
-has_unseen_levels <- function(formula, data, train, test) {
-  variables <- intersect(all.vars(formula[[3]]), names(data))
-  any(vapply(variables, function(name) {
-    column <- data[[name]]
-    if (!is.factor(column) && !is.character(column)) return(FALSE)
+# TRUE when a factor or character column of the model frame takes, in the held-out rows, a level
+# that the training rows lack (rare levels and cross-fitting). glm() drops such levels and
+# predict() then stops; logistic_on_design() is used instead. Otherwise the formula path is kept
+# unchanged. The columns come from the model frame, so a factor made inside the formula
+# (`factor(x)`) is checked as well.
+has_unseen_levels <- function(prepared, train, test) {
+  any(vapply(prepared$level_columns, function(column) {
     !all(unique(column[test]) %in% unique(column[train]))
   }, logical(1)))
+}
+
+# The two glm() warnings that the logistic log records per fold or bootstrap sample.
+is_known_glm_warning <- function(w) {
+  text <- conditionMessage(w)
+  grepl("did not converge", text, fixed = TRUE) ||
+    grepl("fitted probabilities numerically 0 or 1", text, fixed = TRUE)
+}
+
+# One warning for all folds in which glm() warned, instead of one per fold.
+warn_logistic_folds <- function(logistic_log) {
+  if (is.null(logistic_log)) return(invisible(FALSE))
+  warned <- logistic_log$glm_not_converged | logistic_log$glm_fitted_0_or_1
+  if (!any(warned)) return(invisible(FALSE))
+  kinds <- c(if (any(logistic_log$glm_not_converged)) "did not converge",
+             if (any(logistic_log$glm_fitted_0_or_1)) "fitted probabilities of 0 or 1")
+  warning("Logistic regression: glm() warned in ", sum(warned), " of ", length(warned),
+          " cross-fitting folds (", paste(kinds, collapse = "; "), "). This usually means that ",
+          "some covariate patterns predict treatment almost perfectly (separation). The folds ",
+          "are listed in `logistic_log` of the model set.", call. = FALSE)
+  invisible(TRUE)
 }
 
 # Logistic regression on the full-data design matrix (the dummy columns of every level, as for
@@ -517,7 +554,7 @@ model_quality <- function(probability, treatment) {
 }
 
 # ---- BART and the GRF probability forest --------------------------------------
-# Both are optional (Suggests). Each fit draws its own integer seed from the task's random-number
+# Each fit draws its own integer seed from the task's random-number
 # stream, so a given task seed gives the same scores on one core or many. Causal forests are not
 # used: they need the outcome, and the design is outcome-free.
 propensity_algorithms <- c("logistic_regression", "random_forest", "gradient_boosting", "bart",
@@ -527,10 +564,14 @@ single_fit_algorithms <- c("logistic_regression", "logistic_splines")
 
 check_optional_algorithms <- function(algorithms) {
   packages <- c(bart = "dbarts", grf_probability = "grf", lasso = "glmnet",
-                lasso_interactions = "glmnet")
+                lasso_interactions = "glmnet", random_forest = "randomForest",
+                gradient_boosting = "gbm")
   needed <- packages[intersect(algorithms, names(packages))]
   for (algorithm in names(needed)) {
-    if (!requireNamespace(needed[[algorithm]], quietly = TRUE)) {
+    # gbm prints a start-up message ("no longer under development") when it is loaded.
+    available <- suppressPackageStartupMessages(requireNamespace(needed[[algorithm]],
+                                                                 quietly = TRUE))
+    if (!available) {
       stop("Algorithm \"", algorithm, "\" needs the package '", needed[[algorithm]], "'.",
            call. = FALSE)
     }

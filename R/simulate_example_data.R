@@ -1,6 +1,7 @@
 #' Simulate an example dataset for the propensity model sensitivity diagnostics
 #'
-#' Generates one dataset from the data-generating mechanisms of the simulation study.
+#' Generates one dataset from simulated data-generating mechanisms (with the true propensity
+#' and the outcome), for examples and for checking the diagnostics where the truth is known.
 #' Six standard normal covariates `x1` to `x6`; in Scenario 5
 #' four binary covariates `b1` to `b4` are added, `b4` rare at 5 %. The true treatment logit is
 #' `alpha + X beta + nonlinear(X)`, where `alpha` is solved numerically so that the mean true
@@ -24,8 +25,8 @@
 #' @param n Number of patients (positive integer).
 #' @param scenario One of `"S1"`, `"S2"`, `"S3"`, `"S4"`, `"S5"`.
 #' @param lambda Strength of the nonlinear terms in the outcome model: `0` means the nonlinear
-#'   terms affect treatment but not the outcome (harmless misspecification); the plan uses
-#'   `1.5` for the harmful case.
+#'   terms affect treatment but not the outcome (harmless misspecification); larger values, such
+#'   as `1.5`, make the misspecification harmful for the effect estimate.
 #' @param treated_share Target mean true propensity, in (0, 1). Default `0.20`.
 #' @param seed Integer seed.
 #' @param heterogeneity If `TRUE`, the treatment effect is `tau = 1 + 0.8 * x1`; otherwise

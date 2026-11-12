@@ -29,11 +29,16 @@
 #' @section Bootstrap block:
 #' With `bootstrap_samples = B > 0` the function draws `B` nonparametric row bootstrap samples of
 #' the data (one derived seed per sample). A sample with fewer than 10 treated or 10 untreated rows
-#' is skipped and listed in `bootstrap$skipped`. For each sample, logistic regression with the
-#' model set's formula is fitted in-sample, without cross-fitting: main-effects logistic
-#' regression barely overfits, and this block measures sampling instability only (see
+#' is skipped, listed in `bootstrap$skipped` and counted in a message. For each sample, logistic
+#' regression with the model set's formula (as written, with any interactions or
+#' transformations) is fitted in-sample, without cross-fitting: this block measures the sampling
+#' variability of the fitted model, not its out-of-sample accuracy (see
 #' [bootstrap_rank_instability()]). The refitted model predicts logits for every
-#' ORIGINAL patient; their percentile ranks form `bootstrap$rank` (n x B). When a factor level
+#' ORIGINAL patient; their percentile ranks form `bootstrap$rank` (n x B). These logits are not
+#' clipped by default, while the cross-fitted scores are clipped to `[clip, 1 - clip]`; under
+#' near-separation many cross-fitted scores can then share the clipped value (tied ranks) while
+#' their bootstrap ranks stay distinct. `clip_bootstrap = TRUE` clips the bootstrap scores in the
+#' same way. The default (`FALSE`) keeps the method as it was studied. When a factor level
 #' of the original data is absent from the sample, the refit uses the full-data design matrix
 #' and scores those patients as the reference level (the rule of the cross-fitted logistic
 #' model); the samples concerned are listed in
@@ -51,31 +56,38 @@
 #' @section Seeds and parallel runs:
 #' Per-task seeds are derived in the main process from `seed`, passed to each worker and
 #' applied with [withr::with_seed()]; `m_order = "random"` and the bootstrap draws are
-#' therefore reproducible and identical for `cores = 1` and `cores > 1`. Parallel runs use
-#' [parallel::mclapply()] on Unix and fall back to a serial run on Windows.
+#' therefore reproducible and identical for `cores = 1` and `cores > 1`. The matching tasks,
+#' the bootstrap draws and the bootstrap matching each have their own family of derived seeds,
+#' separate from the model fits; with the default order `"largest"` matching uses no random
+#' numbers. Parallel runs use [parallel::mclapply()] on Unix; on Windows the run is serial.
 #'
 #' @param model_set A `propensity_model_set` from [fit_propensity_models()].
 #' @param data The data frame the model set was fitted on (same rows, same order). The
 #'   matches are stored with the row names of `data` as ids; the data itself is not stored.
-#' @param replace `TRUE` (matching with replacement, the primary analysis) or `FALSE`
-#'   (without replacement, the secondary analysis).
+#' @param replace `TRUE` (matching with replacement; the default of this function) or `FALSE`
+#'   (without replacement; the default of [propensity_sensitivity()] with a formula). Both are
+#'   supported; see `vignette("definitions", package = "propsens")` for what each targets.
 #' @param ratio Number of untreated partners per treated patient. Only `1` is supported in this
 #'   version.
 #' @param m_order Order in which treated patients are matched; one of MatchIt's
 #'   `"largest"`, `"smallest"`, `"data"`, `"random"`, `"closest"`, `"farthest"`.
 #' @param caliper `NULL` (default, no caliper) or a positive number: the caliper in standard
 #'   deviations of the logit.
-#' @param oracle_logit Simulation only: a numeric vector of length n with the true logit, for
-#'   example the `true_logit` column of [simulate_example_data()]. When given, one extra
-#'   entry `oracle` is matched with the same options.
+#' @param oracle_logit Internal, for simulation studies only: a numeric vector of length n with
+#'   the true logit, for example the `true_logit` column of [simulate_example_data()]. When
+#'   given, one extra entry `oracle` is matched with the same options. Not needed in an
+#'   analysis.
 #' @param bootstrap_samples Number of bootstrap samples `B` for the sampling-instability block
 #'   (default 0, none).
 #' @param cores Number of cores for the matching tasks (default 1).
 #' @param seed Integer seed from which every other seed is derived.
-#' @param common_random_order Only for `m_order = "random"`: `FALSE` (default) gives each
-#'   model its own random order; `TRUE` gives every model (and the oracle) the same random
-#'   order, so that the models differ only in their distances, not in the order in which
-#'   treated patients are matched. Used by the matching-order sensitivity of the simulation.
+#' @param common_random_order Internal, for simulation studies only, and only for
+#'   `m_order = "random"`: `FALSE` (default) gives each model its own random order; `TRUE` gives
+#'   every model (and the oracle) the same random order, so that the models differ only in their
+#'   distances, not in the order in which treated patients are matched.
+#' @param clip_bootstrap `FALSE` (default) or `TRUE`: clip the bootstrap refits' scores to
+#'   `[clip, 1 - clip]` with the model set's `clip`, as the cross-fitted scores are. See the
+#'   section "Bootstrap block".
 #' @return An object of class `"match_set"`: a list with
 #' * `matches`: one data frame per model (`treated_id`, `control_id`, `weight`, `pair_id`),
 #'   named by model id;
@@ -110,12 +122,14 @@
 #' @export
 match_each_model <- function(model_set, data, replace = TRUE, ratio = 1, m_order = "largest",
                              caliper = NULL, oracle_logit = NULL, bootstrap_samples = 0,
-                             cores = 1, seed = 1, common_random_order = FALSE) {
+                             cores = 1, seed = 1, common_random_order = FALSE,
+                             clip_bootstrap = FALSE) {
   call <- match.call()
   if (!inherits(model_set, "propensity_model_set")) {
     stop("`model_set` must be a `propensity_model_set` from fit_propensity_models().")
   }
   if (!is.data.frame(data)) stop("`data` must be a data frame.")
+  data <- treatment_as_0_1(model_set$formula, data)
   n <- length(model_set$treatment)
   if (nrow(data) != n) {
     stop("`data` has ", nrow(data), " rows but the model set was fitted on ", n, " rows. ",
@@ -127,22 +141,11 @@ match_each_model <- function(model_set, data, replace = TRUE, ratio = 1, m_order
     stop("The treatment in `data` differs from the treatment the model set was fitted on. ",
          "Pass the same data frame, in the same row order.")
   }
-  if (!is.logical(replace) || length(replace) != 1 || is.na(replace)) {
-    stop("`replace` must be TRUE or FALSE.")
-  }
+  check_matching_options(replace, m_order, caliper)
   if (!is.numeric(ratio) || length(ratio) != 1 || is.na(ratio) || ratio != 1) {
     stop("`ratio` other than 1 is not supported in this version.")
   }
-  allowed_orders <- c("largest", "smallest", "data", "random", "closest", "farthest")
-  if (!is.character(m_order) || length(m_order) != 1 || !m_order %in% allowed_orders) {
-    stop("`m_order` must be one of ", paste0('"', allowed_orders, '"', collapse = ", "), ".")
-  }
-  if (!is.null(caliper)) {
-    if (!is.numeric(caliper) || length(caliper) != 1 || is.na(caliper) || caliper <= 0) {
-      stop("`caliper` must be NULL or a single positive number (standard deviations of the ",
-           "logit).")
-    }
-  }
+  check_true_false(clip_bootstrap, "clip_bootstrap")
   if (!is.null(oracle_logit)) {
     if (!is.numeric(oracle_logit) || length(oracle_logit) != n || anyNA(oracle_logit)) {
       stop("`oracle_logit` must be a numeric vector of length ", n, " without missing values.")
@@ -169,24 +172,29 @@ match_each_model <- function(model_set, data, replace = TRUE, ratio = 1, m_order
   model_set_text <- deparse_one(call$model_set, "model_set")
 
   # One matching task per model, plus the oracle; seeds matter only for m_order = "random".
+  # The matching seeds are a family of their own (offset matching_seed_offset), separate from
+  # the model fits (100 + index), the fold split (0) and the bootstrap draws (1000 + b).
   tasks <- lapply(seq_along(model_ids), function(m) {
     list(name = model_ids[m], logit = model_set$logit[, m],
          distance_text = paste0(model_set_text, '$logit[, "', model_ids[m], '"]'),
-         task_seed = derive_seed(seed, if (common_random_order) 100L else 100L + m))
+         task_seed = derive_seed(seed, matching_seed_offset +
+                                   if (common_random_order) 0L else m))
   })
   if (!is.null(oracle_logit)) {
-    oracle_seed_index <- 100L + length(model_ids) + 1L
+    oracle_seed_index <- matching_seed_offset +
+      if (common_random_order) 0L else length(model_ids) + 1L
     tasks[[length(tasks) + 1]] <- list(
       name = "oracle", logit = as.numeric(oracle_logit),
       distance_text = deparse_one(call$oracle_logit, "oracle_logit"),
-      task_seed = derive_seed(seed, if (common_random_order) 100L else oracle_seed_index)
+      task_seed = derive_seed(seed, oracle_seed_index)
     )
   }
   match_task <- function(task) {
     match_one_distance(task, formula, data, data_text, treatment, row_ids, options)
   }
-  results <- run_tasks(tasks, match_task, cores)
-  names(results) <- vapply(tasks, `[[`, "", "name")
+  task_names <- vapply(tasks, `[[`, "", "name")
+  results <- run_tasks(tasks, match_task, cores, task_names = task_names, what = "matching task")
+  names(results) <- task_names
 
   model_results <- results[model_ids]
   weights <- do.call(cbind, lapply(model_results, `[[`, "weights"))
@@ -201,7 +209,8 @@ match_each_model <- function(model_set, data, replace = TRUE, ratio = 1, m_order
   bootstrap <- NULL
   if (bootstrap_samples > 0) {
     bootstrap <- bootstrap_logistic_matches(formula, data, treatment, row_ids, options,
-                                            bootstrap_samples, seed, cores)
+                                            bootstrap_samples, seed, cores,
+                                            clip = if (clip_bootstrap) model_set$settings$clip)
   }
 
   structure(list(
@@ -220,6 +229,7 @@ match_each_model <- function(model_set, data, replace = TRUE, ratio = 1, m_order
                     estimand = "ATT", method = "nearest", has_oracle = !is.null(oracle_logit),
                     bootstrap_samples = as.integer(bootstrap_samples),
                     common_random_order = common_random_order,
+                    clip_bootstrap = clip_bootstrap,
                     bootstrap_minimum_group_size = 10L, cores = cores, seed = seed,
                     rng = rng_settings(), formula = formula),
     call = call
@@ -262,18 +272,10 @@ print.match_set <- function(x, ...) {
 
 # ---- internal helpers ------------------------------------------------------------------
 
-run_tasks <- function(tasks, task_function, cores) {
-  use_parallel <- cores > 1 && .Platform$OS.type == "unix"
-  if (!use_parallel) return(lapply(tasks, task_function))
-  results <- parallel::mclapply(tasks, task_function, mc.cores = cores, mc.preschedule = FALSE,
-                                mc.set.seed = FALSE)
-  failed <- vapply(results, inherits, logical(1), what = "try-error")
-  if (any(failed)) {
-    first_failure <- results[[which(failed)[1]]]
-    stop("A matching task failed: ", conditionMessage(attr(first_failure, "condition")))
-  }
-  results
-}
+# Offsets of the derived-seed families (see derive_seed()): model fits use 100 + index, the
+# fold split 0, the gradient boosting tree count 1, the bootstrap draws 1000 + b.
+matching_seed_offset <- 3000000L
+bootstrap_matching_seed_offset <- 4000000L
 
 deparse_one <- function(expression, fallback) {
   if (is.null(expression)) return(fallback)
@@ -323,51 +325,75 @@ match_one_distance <- function(task, formula, data, data_text, treatment, row_id
        call = paste(deparse(stored_call, width.cutoff = 500L), collapse = " "))
 }
 
+# The bootstrap block. `clip` = NULL (default) leaves the refits' logits as they are; a number
+# clips them to the logits of [clip, 1 - clip], as the cross-fitted scores. `match = FALSE` skips
+# the matching (only the ranks are needed); the pairs are then NA.
 bootstrap_logistic_matches <- function(formula, data, treatment, row_ids, options,
-                                       bootstrap_samples, seed, cores) {
+                                       bootstrap_samples, seed, cores, clip = NULL,
+                                       match = TRUE) {
   n <- length(treatment)
   minimum_group <- 10L
   tasks <- lapply(seq_len(bootstrap_samples), function(b) {
     list(index = b, draw_seed = derive_seed(seed, 1000L + b),
-         match_seed = derive_seed(seed, 2000L + b))
+         match_seed = derive_seed(seed, bootstrap_matching_seed_offset + b))
   })
+  clip_logit <- function(logit) {
+    if (is.null(clip)) return(logit)
+    limits <- log(c(clip, 1 - clip) / (1 - c(clip, 1 - clip)))
+    pmin(pmax(logit, limits[1]), limits[2])
+  }
   one_sample <- function(task) {
     rows <- with_task_seed(task$draw_seed, sample.int(n, n, replace = TRUE))
     n_treated <- sum(treatment[rows] == 1)
     n_control <- sum(treatment[rows] == 0)
     if (n_treated < minimum_group || n_control < minimum_group) {
-      return(list(skipped = paste0("fewer than ", minimum_group, " treated or controls (",
-                                   n_treated, " treated, ", n_control, " controls)")))
+      return(list(skipped = paste0("fewer than ", minimum_group, " treated or untreated (",
+                                   n_treated, " treated, ", n_control, " untreated)")))
     }
     resample <- data[rows, , drop = FALSE]
     rownames(resample) <- NULL
     logits <- bootstrap_sample_logits(formula, data, resample, rows, prepared)
     if (!is.null(logits$skipped)) return(list(skipped = logits$skipped))
-    original_logit <- logits$original_logit
-    resample_logit <- logits$resample_logit
-    matched <- run_matchit(formula, resample, resample_logit, options, task$match_seed)
-    pieces <- read_matchit_object(matched, treatment[rows], as.character(seq_len(n)), options)
-    # Map resample rows back to original rows; keep the first occurrence of each treated.
-    original_treated <- rows[pieces$treated_rows]
-    original_control <- rows[pieces$control_rows]
-    first_occurrence <- !duplicated(original_treated)
+    original_logit <- clip_logit(logits$original_logit)
+    resample_logit <- clip_logit(logits$resample_logit)
     pairs <- rep(NA_character_, n)
-    pairs[original_treated[first_occurrence]] <-
-      ifelse(is.na(original_control[first_occurrence]), NA_character_,
-             row_ids[original_control[first_occurrence]])
+    if (match) {
+      matched <- run_matchit(formula, resample, resample_logit, options, task$match_seed)
+      pieces <- read_matchit_object(matched, treatment[rows], as.character(seq_len(n)), options)
+      # Map resample rows back to original rows; keep the first occurrence of each treated.
+      original_treated <- rows[pieces$treated_rows]
+      original_control <- rows[pieces$control_rows]
+      first_occurrence <- !duplicated(original_treated)
+      pairs[original_treated[first_occurrence]] <-
+        ifelse(is.na(original_control[first_occurrence]), NA_character_,
+               row_ids[original_control[first_occurrence]])
+    }
     present <- logical(n)
     present[rows] <- TRUE
     list(rank = rank(original_logit, ties.method = "average") / n, pairs = pairs,
-         present = present, path = logits$path)
+         present = present, path = logits$path, glm_warned = logits$glm_warned)
   }
   prepared <- prepare_model_data(formula, data)
-  results <- run_tasks(tasks, one_sample, cores)
+  results <- run_tasks(tasks, one_sample, cores,
+                       task_names = paste("bootstrap sample", seq_len(bootstrap_samples)),
+                       what = "bootstrap task")
   skipped_flag <- vapply(results, function(r) !is.null(r$skipped), logical(1))
   skipped <- data.frame(
     sample = which(skipped_flag),
     reason = vapply(results[skipped_flag], `[[`, "", "skipped"),
     stringsAsFactors = FALSE
   )
+  if (nrow(skipped) > 0) {
+    reasons <- table(sub(" \\(.*$", "", skipped$reason))
+    message("Bootstrap: ", nrow(skipped), " of ", bootstrap_samples, " samples skipped (",
+            paste0(names(reasons), ": ", as.integer(reasons), collapse = "; "), ").")
+  }
+  glm_warned <- vapply(results, function(r) isTRUE(r$glm_warned), logical(1))
+  if (any(glm_warned)) {
+    warning("Bootstrap: glm() warned (no convergence or fitted probabilities of 0 or 1) in ",
+            sum(glm_warned), " of ", bootstrap_samples, " logistic refits; this usually means ",
+            "separation in those samples.", call. = FALSE)
+  }
   # Skipped samples keep their column (all NA) so the matrices stay n x B.
   bind <- function(field, empty) {
     columns <- lapply(results, function(r) if (is.null(r$skipped)) r[[field]] else rep(empty, n))
@@ -398,17 +424,23 @@ predict_bootstrap_refit <- function(fit, data) {
 # original data stops (a rank-deficient fit that did not converge can leave non-finite values in
 # its QR), the refit also uses the design-matrix rule, as the cross-fitted logistic model does
 # ("design_fallback_predict_error"). Otherwise the formula path is unchanged. `path` names the
-# path used. `unseen_levels_rule = "skip"` and `predict_error_rule = "skip"` give the earlier
-# behaviour (the sample is skipped); they are kept only to check saved results.
-bootstrap_sample_logits <- function(formula, data, resample, rows, prepared,
-                                    unseen_levels_rule = c("design", "skip"),
-                                    predict_error_rule = c("design", "skip")) {
-  unseen_levels_rule <- match.arg(unseen_levels_rule)
-  predict_error_rule <- match.arg(predict_error_rule)
+# path used. glm()'s two warnings about convergence and fitted 0 or 1 are counted
+# (`glm_warned`) instead of being repeated once per sample.
+bootstrap_sample_logits <- function(formula, data, resample, rows, prepared) {
+  glm_warned <- FALSE
+  quiet_glm <- function(expression) {
+    withCallingHandlers(expression, warning = function(w) {
+      if (is_known_glm_warning(w)) {
+        glm_warned <<- TRUE
+        invokeRestart("muffleWarning")
+      }
+    })
+  }
   on_design <- function(path) {
     design <- cbind(1, prepared$design)
-    fit <- tryCatch(stats::glm.fit(design[rows, , drop = FALSE], prepared$treatment[rows],
-                                   family = stats::binomial()),
+    fit <- tryCatch(quiet_glm(stats::glm.fit(design[rows, , drop = FALSE],
+                                             prepared$treatment[rows],
+                                             family = stats::binomial())),
                     error = function(e) e)
     if (inherits(fit, "error")) {
       return(list(skipped = paste0("logistic refit failed: ", conditionMessage(fit))))
@@ -417,28 +449,22 @@ bootstrap_sample_logits <- function(formula, data, resample, rows, prepared,
     coefficients[is.na(coefficients)] <- 0
     original_logit <- as.numeric(design %*% coefficients)
     list(original_logit = original_logit, resample_logit = original_logit[rows],
-         design_rule = path == "design_unseen_levels", path = path)
+         design_rule = path == "design_unseen_levels", path = path, glm_warned = glm_warned)
   }
-  if (unseen_levels_rule == "design" &&
-        has_unseen_levels(formula, data, rows, seq_len(nrow(data)))) {
+  if (has_unseen_levels(prepared, rows, seq_len(nrow(data)))) {
     return(on_design("design_unseen_levels"))
   }
-  fit <- tryCatch(stats::glm(formula, data = resample, family = stats::binomial()),
+  fit <- tryCatch(quiet_glm(stats::glm(formula, data = resample, family = stats::binomial())),
                   error = function(e) e)
   if (inherits(fit, "error")) {
     return(list(skipped = paste0("logistic refit failed: ", conditionMessage(fit))))
   }
   original_logit <- tryCatch(predict_bootstrap_refit(fit, data), error = function(e) e)
   if (inherits(original_logit, "error")) {
-    # A level absent from the resample under the "skip" rule also stops here; only a failure
-    # with every level present is a prediction failure for the design-matrix fallback.
-    if (predict_error_rule == "design" &&
-          !has_unseen_levels(formula, data, rows, seq_len(nrow(data)))) {
-      return(on_design("design_fallback_predict_error"))
-    }
-    return(list(skipped = paste0("prediction failed: ", conditionMessage(original_logit))))
+    # Every level is present here (checked above), so this is a prediction failure.
+    return(on_design("design_fallback_predict_error"))
   }
   list(original_logit = original_logit,
        resample_logit = as.numeric(stats::predict(fit, type = "link")), design_rule = FALSE,
-       path = "formula")
+       path = "formula", glm_warned = glm_warned)
 }

@@ -10,7 +10,8 @@ bootstrap_rank_instability(
   data = NULL,
   bootstrap_samples = 20,
   cores = 1,
-  seed = 1
+  seed = 1,
+  clip_bootstrap = FALSE
 )
 
 \method{print}{bootstrap_rank_instability}(x, ...)
@@ -31,6 +32,10 @@ stored ranks.}
 \item{seed}{Integer seed from which every other seed is derived; the same seed gives the
 bootstrap samples of \code{\link[=match_each_model]{match_each_model()}}. Not used for stored ranks.}
 
+\item{clip_bootstrap}{\code{FALSE} (default) or \code{TRUE}: clip the refits' scores to
+\verb{[0.001, 0.999]}, the default \code{clip} of \code{\link[=fit_propensity_models]{fit_propensity_models()}}. Not used for stored
+ranks.}
+
 \item{...}{Not used.}
 }
 \value{
@@ -40,8 +45,9 @@ patient: \code{id}, \code{treated}, \code{rank_instability}), \code{summary} (\c
 than two bootstrap samples are usable.
 }
 \description{
-The sampling noise of the analyst's logistic model: the logistic model with the formula's main
-terms is refitted on \code{bootstrap_samples} nonparametric bootstrap samples of all patients, the
+Descriptive. The sampling noise of the analyst's logistic model: logistic regression with the
+formula as written (including any interactions or transformations) is refitted on
+\code{bootstrap_samples} nonparametric bootstrap samples of all patients, the
 original patients are ranked by each refit's logit (percentile rank
 \code{rank(logit, ties = "average") / n}, on a 0 to 1 scale), and for each patient the standard
 deviation of the rank over the refits is taken. The study-level value is the mean over treated
@@ -49,9 +55,12 @@ patients. A bootstrap sample with fewer than 10 treated or 10 untreated patients
 rule of \code{\link[=match_each_model]{match_each_model()}}).
 }
 \details{
-It uses the covariates and the treatment only, no outcome. It is evaluated next to rank
-disagreement in a manuscript in preparation; report the two together. It describes the
-analyst's logistic model only, whatever distance the \code{matchit} object used.
+It uses the covariates and the treatment only, no outcome. Report it next to rank
+disagreement: it shows how much the logistic model's ranks move from sampling alone. It
+describes the analyst's logistic model only, whatever distance the \code{matchit} object used.
+The refits' scores are not clipped by default, unlike the cross-fitted scores (see
+\code{clip_bootstrap}). These diagnostics have been studied in the author's simulations and
+benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet.
 }
 \examples{
 data("lalonde", package = "MatchIt")

@@ -3,19 +3,20 @@
 #' Three plots, built with ggplot2 and a colour-blind-safe
 #' (Okabe-Ito) palette, readable at 8 cm width.
 #'
-#' - `type = "patients"`: one point per treated patient; x = rank disagreement, y = scaled
-#'   control spread, colour = outside the support of the untreated patients' scores; dashed
-#'   lines at the study medians. Upper right = the models disagree about this patient and pick
-#'   different kinds of untreated partners. Treated patients unmatched in every model (caliper)
-#'   are left out.
+#' - `type = "patients"`: how the disagreement is spread over the treated patients: one point
+#'   per treated patient; x = rank disagreement, y = scaled control spread, colour = outside
+#'   the support of the untreated patients' scores; dashed lines at the study medians. It is a
+#'   description of the spread, not a set of flags for individual patients. Treated patients
+#'   unmatched in every kept model (caliper) are left out.
 #' - `type = "models"`: the four balance statistics by model, one panel per
-#'   statistic. Models that fail the quality gate are hollow; the analyst's reference model is
-#'   drawn in its own colour; the dashed line in the main-terms panel is the balance limit of
-#'   the quality gate.
-#' - `type = "recurrence"`: histograms of pair recurrence over treated patients, across models
-#'   (floor 1 / number of models and ceiling 1 drawn) and across bootstrap resamples with the
-#'   corrected denominator (ceiling 1; the expected ceiling 1 - e^(-1) about 0.63 of the uncorrected
-#'   version is drawn for reference).
+#'   statistic, each axis starting at 0. Kept models are filled, the others hollow; your own
+#'   model (from a `matchit` object) is drawn in its own colour; the dashed line in the
+#'   main-terms panel is the balance limit of the quality gate.
+#' - `type = "recurrence"`: histograms of pair recurrence over treated patients, across the
+#'   kept models (floor 1 / number of models and ceiling 1 drawn; pair instability is 1 minus
+#'   its mean, and it is high whenever many untreated patients have similar scores, even when
+#'   the models agree) and across bootstrap refits of the logistic model with the corrected
+#'   denominator (ceiling 1).
 #'
 #' @param x A `propensity_sensitivity` object.
 #' @param type One of `"patients"`, `"models"`, `"recurrence"`.
@@ -54,9 +55,15 @@ plot_theme <- function() {
   ggplot2::theme_bw(base_size = 8) +
     ggplot2::theme(legend.position = "bottom", legend.box = "vertical",
                    legend.margin = ggplot2::margin(0, 0, 0, 0),
+                   legend.title = ggplot2::element_text(size = 8),
+                   legend.text = ggplot2::element_text(size = 8),
                    plot.caption = ggplot2::element_text(hjust = 0, size = 7),
+                   plot.margin = ggplot2::margin(5.5, 12, 5.5, 5.5),
                    panel.grid.minor = ggplot2::element_blank())
 }
+
+# Axis labels with at most three significant digits.
+short_number_labels <- function(values) format(signif(values, 3), trim = TRUE)
 
 plot_patients <- function(x) {
   patients <- x$patients[x$patients$treated == 1, , drop = FALSE]
@@ -83,12 +90,13 @@ plot_patients <- function(x) {
     ggplot2::labs(x = "Rank disagreement across models",
                   y = "Scaled control spread",
                   caption = paste0("One point per treated patient; dashed lines: medians.\n",
-                                   "Upper right = the models disagree about this patient\n",
-                                   "and pick different kinds of controls.")) +
+                                   "A description of how the disagreement is spread over\n",
+                                   "the treated patients, not a flag for individual patients.")) +
     plot_theme()
 }
 
 plot_models <- function(x) {
+  shape_key_colour <- list(colour = okabe_ito[["blue"]])
   statistics <- c(smd_max_main = "Max |SMD| main",
                   smd_max_extended = "Max |SMD| extended",
                   energy_distance = "Energy distance",
@@ -97,39 +105,47 @@ plot_models <- function(x) {
   long <- do.call(rbind, lapply(names(statistics), function(statistic) {
     data.frame(model_id = models$model_id, statistic = statistics[[statistic]],
                value = models[[statistic]],
-               kind = ifelse(models$is_reference, "reference (analyst)", "refitted model"),
-               gate = ifelse(models$passed_quality_gate %in% TRUE, "passed", "failed"),
+               kind = ifelse(models$is_reference, "your own model", "refitted model"),
+               gate = ifelse(models$passed_quality_gate %in% TRUE, "kept", "not kept"),
                stringsAsFactors = FALSE)
   }))
   long$statistic <- factor(long$statistic, levels = unname(statistics))
   long$model_id <- factor(long$model_id, levels = rev(models$model_id))
-  long$kind <- factor(long$kind, levels = c("refitted model", "reference (analyst)"))
-  long$gate <- factor(long$gate, levels = c("passed", "failed"))
+  long$kind <- factor(long$kind, levels = c("refitted model", "your own model"))
+  long$gate <- factor(long$gate, levels = c("kept", "not kept"))
   threshold <- data.frame(statistic = factor(statistics[["smd_max_main"]],
                                              levels = unname(statistics)),
                           value = x$settings$balance_limit)
   ggplot2::ggplot(long, ggplot2::aes(x = .data$value, y = .data$model_id)) +
     ggplot2::geom_vline(data = threshold, ggplot2::aes(xintercept = .data$value),
                         linetype = "dashed", colour = okabe_ito[["grey"]]) +
+    # show.legend = TRUE draws a key for "kept" and "not kept" even when one is absent.
     ggplot2::geom_point(ggplot2::aes(colour = .data$kind, shape = .data$gate), size = 2,
-                        na.rm = TRUE) +
-    ggplot2::scale_shape_manual(values = c(passed = 16, failed = 1), drop = FALSE,
+                        na.rm = TRUE, show.legend = TRUE) +
+    ggplot2::scale_shape_manual(values = c(kept = 16, "not kept" = 1), drop = FALSE,
                                 name = "Quality gate") +
     ggplot2::scale_colour_manual(values = c("refitted model" = okabe_ito[["blue"]],
-                                            "reference (analyst)" = okabe_ito[["vermillion"]]),
+                                            "your own model" = okabe_ito[["vermillion"]]),
                                  drop = TRUE, name = NULL) +
-    ggplot2::scale_x_continuous(n.breaks = 3) +
+    # The legend keys are drawn in a fixed colour, so the "kept" key is visible even when no
+    # model is kept.
+    ggplot2::guides(shape = ggplot2::guide_legend(override.aes = shape_key_colour)) +
+    ggplot2::scale_x_continuous(n.breaks = 3, labels = short_number_labels,
+                                expand = ggplot2::expansion(mult = c(0, 0.08))) +
+    ggplot2::expand_limits(x = 0) +
     ggplot2::facet_wrap(~ statistic, scales = "free_x", ncol = 2) +
-    ggplot2::labs(x = "Value after matching (lower = better)", y = NULL,
-                  caption = paste0("Extended: with squares, interactions.\n",
-                                   "Hollow = fails the quality gate;\n",
-                                   "dashed line = balance limit of the quality gate.")) +
-    plot_theme()
+    ggplot2::labs(x = "Value after matching (lower = better; each axis starts at 0)", y = NULL,
+                  caption = paste0("Extended: with squares and interactions.\n",
+                                   "Filled = kept by the quality gate; hollow = not kept.\n",
+                                   "Dashed line = balance limit of the quality gate.")) +
+    plot_theme() +
+    ggplot2::theme(panel.spacing.x = ggplot2::unit(1.2, "lines"))
 }
 
 plot_recurrence <- function(x) {
   treated <- x$patients[x$patients$treated == 1, , drop = FALSE]
-  panels <- c(models = "Across models", bootstrap = "Across bootstrap resamples")
+  panels <- c(models = "Across the kept models",
+              bootstrap = "Across bootstrap refits of the logistic model")
   long <- rbind(
     data.frame(panel = panels[["models"]], recurrence = treated$pair_recurrence_models),
     data.frame(panel = panels[["bootstrap"]], recurrence = treated$pair_recurrence_bootstrap)
@@ -137,11 +153,10 @@ plot_recurrence <- function(x) {
   long <- long[!is.na(long$recurrence), , drop = FALSE]
   long$panel <- factor(long$panel, levels = unname(panels))
   lines <- data.frame(
-    panel = factor(c(panels[["models"]], panels[["models"]], panels[["bootstrap"]],
-                     panels[["bootstrap"]]), levels = unname(panels)),
-    value = c(x$summary$pair_recurrence_floor_models, 1,
-              x$summary$pair_recurrence_expected_ceiling_bootstrap_uncorrected, 1),
-    line = c("floor (1 / models)", "ceiling", "uncorrected ceiling (0.63)", "ceiling")
+    panel = factor(c(panels[["models"]], panels[["models"]], panels[["bootstrap"]]),
+                   levels = unname(panels)),
+    value = c(x$summary$pair_recurrence_floor_models, 1, 1),
+    line = c("floor (1 / models)", "ceiling", "ceiling")
   )
   ggplot2::ggplot(long, ggplot2::aes(x = .data$recurrence)) +
     ggplot2::geom_histogram(binwidth = 0.05, boundary = 0, fill = okabe_ito[["blue"]],
@@ -150,15 +165,17 @@ plot_recurrence <- function(x) {
                                                    linetype = .data$line),
                         colour = okabe_ito[["vermillion"]]) +
     ggplot2::scale_linetype_manual(values = c("floor (1 / models)" = "dotted",
-                                              "ceiling" = "solid",
-                                              "uncorrected ceiling (0.63)" = "dashed"),
+                                              "ceiling" = "solid"),
                                    name = NULL) +
     ggplot2::guides(linetype = ggplot2::guide_legend(ncol = 1)) +
     ggplot2::facet_wrap(~ panel, ncol = 1, scales = "free_y", drop = FALSE) +
     ggplot2::coord_cartesian(xlim = c(0, 1.05)) +
-    ggplot2::labs(x = "Pair recurrence", y = "Treated patients",
-                  caption = paste0("Share of runs that choose the modal control. ",
-                                   "Descriptive index:\n",
-                                   "it measures crowding of controls, not model sensitivity.")) +
+    ggplot2::labs(x = "Pair recurrence (share of runs choosing the most common partner)",
+                  y = "Treated patients",
+                  caption = paste0("Top: pair instability = 1 - mean. Low recurrence is expected ",
+                                   "when many untreated\npatients have similar scores, even when ",
+                                   "the models agree (crowding).\n",
+                                   "Bottom: corrected denominator (resamples holding both ",
+                                   "patients); ceiling 1.")) +
     plot_theme()
 }

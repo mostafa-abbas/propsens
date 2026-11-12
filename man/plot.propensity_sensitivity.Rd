@@ -22,19 +22,20 @@ Three plots, built with ggplot2 and a colour-blind-safe
 }
 \details{
 \itemize{
-\item \code{type = "patients"}: one point per treated patient; x = rank disagreement, y = scaled
-control spread, colour = outside the support of the untreated patients' scores; dashed
-lines at the study medians. Upper right = the models disagree about this patient and pick
-different kinds of untreated partners. Treated patients unmatched in every model (caliper)
-are left out.
+\item \code{type = "patients"}: how the disagreement is spread over the treated patients: one point
+per treated patient; x = rank disagreement, y = scaled control spread, colour = outside
+the support of the untreated patients' scores; dashed lines at the study medians. It is a
+description of the spread, not a set of flags for individual patients. Treated patients
+unmatched in every kept model (caliper) are left out.
 \item \code{type = "models"}: the four balance statistics by model, one panel per
-statistic. Models that fail the quality gate are hollow; the analyst's reference model is
-drawn in its own colour; the dashed line in the main-terms panel is the balance limit of
-the quality gate.
-\item \code{type = "recurrence"}: histograms of pair recurrence over treated patients, across models
-(floor 1 / number of models and ceiling 1 drawn) and across bootstrap resamples with the
-corrected denominator (ceiling 1; the expected ceiling 1 - e^(-1) about 0.63 of the uncorrected
-version is drawn for reference).
+statistic, each axis starting at 0. Kept models are filled, the others hollow; your own
+model (from a \code{matchit} object) is drawn in its own colour; the dashed line in the
+main-terms panel is the balance limit of the quality gate.
+\item \code{type = "recurrence"}: histograms of pair recurrence over treated patients, across the
+kept models (floor 1 / number of models and ceiling 1 drawn; pair instability is 1 minus
+its mean, and it is high whenever many untreated patients have similar scores, even when
+the models agree) and across bootstrap refits of the logistic model with the corrected
+denominator (ceiling 1).
 }
 }
 \examples{

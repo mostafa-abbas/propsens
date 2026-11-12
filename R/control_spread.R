@@ -1,7 +1,8 @@
 #' Per-patient control spread across propensity models
 #'
-#' For each treated patient, collect the distinct
-#' untreated partners matched to it by the models in use and compute `s`, the mean pairwise
+#' Descriptive. ("Control" in the name means the untreated partner.) For each treated patient,
+#' collect the distinct untreated partners matched to it by the models in use and compute `s`,
+#' the mean pairwise
 #' Mahalanobis distance between their covariate vectors, with the covariance matrix of all n
 #' patients. `s = 0` when every model picks the same untreated partner, and `NA` when the
 #' patient is unmatched in
@@ -9,6 +10,9 @@
 #' Mahalanobis distance between a treated patient and its logistic-regression match (the first
 #' model in use when the match set has no logistic regression model): 1 means the candidate
 #' partners differ from each other as much as a typical match differs from its treated patient.
+#' The scale model is the logistic regression match even when logistic regression is not one of
+#' the models in use; `print()` names it. When `D` is 0 (every scale pair is identical, for
+#' example with a very tight caliper) `s_scaled` is `NA`, not infinite.
 #' The oracle entry and the bootstrap block are never used.
 #'
 #' @section Covariates:
@@ -73,7 +77,12 @@ control_spread <- function(match_set, covariates, use_gate = TRUE, models = NULL
   pair_distances <- sqrt(rowSums((whitened[treated_position, , drop = FALSE] -
                                     whitened[control_position, , drop = FALSE])^2))
   scale_distance <- mean(pair_distances)
-  scaled <- spread / scale_distance
+  scaled <- if (is.finite(scale_distance) && scale_distance > 0) {
+    spread / scale_distance
+  } else {
+    rep(NA_real_, n)
+  }
+  mean_or_na <- function(values) if (all(is.na(values))) NA_real_ else mean(values, na.rm = TRUE)
 
   treated <- match_set$treatment == 1
   patients <- data.frame(
@@ -83,7 +92,7 @@ control_spread <- function(match_set, covariates, use_gate = TRUE, models = NULL
   )
   structure(list(
     patients = patients,
-    summary = list(mean_scaled_treated = mean(scaled[treated], na.rm = TRUE),
+    summary = list(mean_scaled_treated = mean_or_na(scaled[treated]),
                    p90_scaled_treated = unname(stats::quantile(scaled[treated], 0.9,
                                                                na.rm = TRUE)),
                    scale_distance = scale_distance, scale_model = scale_model,
@@ -105,9 +114,12 @@ control_spread <- function(match_set, covariates, use_gate = TRUE, models = NULL
 print.control_spread <- function(x, ...) {
   print_diagnostic_header("Control spread", x)
   s <- x$summary
-  cat("Scaled control spread over treated: mean ", format_number(s$mean_scaled_treated),
-      ", 90th percentile ", format_number(s$p90_scaled_treated), "\n", sep = "")
+  cat("Scaled control spread over treated (descriptive): mean ",
+      format_number(s$mean_scaled_treated), ", 90th percentile ",
+      format_number(s$p90_scaled_treated), "\n", sep = "")
   cat("Scale: mean Mahalanobis distance treated to match under ", s$scale_model, " = ",
-      format_number(s$scale_distance), "\n", sep = "")
+      format_number(s$scale_distance),
+      if (!is.na(s$scale_distance) && s$scale_distance == 0) " (scaled values set to NA)",
+      "\n", sep = "")
   invisible(x)
 }

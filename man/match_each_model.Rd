@@ -16,7 +16,8 @@ match_each_model(
   bootstrap_samples = 0,
   cores = 1,
   seed = 1,
-  common_random_order = FALSE
+  common_random_order = FALSE,
+  clip_bootstrap = FALSE
 )
 
 \method{print}{match_set}(x, ...)
@@ -27,8 +28,9 @@ match_each_model(
 \item{data}{The data frame the model set was fitted on (same rows, same order). The
 matches are stored with the row names of \code{data} as ids; the data itself is not stored.}
 
-\item{replace}{\code{TRUE} (matching with replacement, the primary analysis) or \code{FALSE}
-(without replacement, the secondary analysis).}
+\item{replace}{\code{TRUE} (matching with replacement; the default of this function) or \code{FALSE}
+(without replacement; the default of \code{\link[=propensity_sensitivity]{propensity_sensitivity()}} with a formula). Both are
+supported; see \code{vignette("definitions", package = "propsens")} for what each targets.}
 
 \item{ratio}{Number of untreated partners per treated patient. Only \code{1} is supported in this
 version.}
@@ -39,9 +41,10 @@ version.}
 \item{caliper}{\code{NULL} (default, no caliper) or a positive number: the caliper in standard
 deviations of the logit.}
 
-\item{oracle_logit}{Simulation only: a numeric vector of length n with the true logit, for
-example the \code{true_logit} column of \code{\link[=simulate_example_data]{simulate_example_data()}}. When given, one extra
-entry \code{oracle} is matched with the same options.}
+\item{oracle_logit}{Internal, for simulation studies only: a numeric vector of length n with
+the true logit, for example the \code{true_logit} column of \code{\link[=simulate_example_data]{simulate_example_data()}}. When
+given, one extra entry \code{oracle} is matched with the same options. Not needed in an
+analysis.}
 
 \item{bootstrap_samples}{Number of bootstrap samples \code{B} for the sampling-instability block
 (default 0, none).}
@@ -50,10 +53,14 @@ entry \code{oracle} is matched with the same options.}
 
 \item{seed}{Integer seed from which every other seed is derived.}
 
-\item{common_random_order}{Only for \code{m_order = "random"}: \code{FALSE} (default) gives each
-model its own random order; \code{TRUE} gives every model (and the oracle) the same random
-order, so that the models differ only in their distances, not in the order in which
-treated patients are matched. Used by the matching-order sensitivity of the simulation.}
+\item{common_random_order}{Internal, for simulation studies only, and only for
+\code{m_order = "random"}: \code{FALSE} (default) gives each model its own random order; \code{TRUE} gives
+every model (and the oracle) the same random order, so that the models differ only in their
+distances, not in the order in which treated patients are matched.}
+
+\item{clip_bootstrap}{\code{FALSE} (default) or \code{TRUE}: clip the bootstrap refits' scores to
+\verb{[clip, 1 - clip]} with the model set's \code{clip}, as the cross-fitted scores are. See the
+section "Bootstrap block".}
 
 \item{x}{A \code{match_set} object.}
 
@@ -112,11 +119,16 @@ number of distinct untreated partners.) Each row of a match table carries
 
 With \code{bootstrap_samples = B > 0} the function draws \code{B} nonparametric row bootstrap samples of
 the data (one derived seed per sample). A sample with fewer than 10 treated or 10 untreated rows
-is skipped and listed in \code{bootstrap$skipped}. For each sample, logistic regression with the
-model set's formula is fitted in-sample, without cross-fitting: main-effects logistic
-regression barely overfits, and this block measures sampling instability only (see
+is skipped, listed in \code{bootstrap$skipped} and counted in a message. For each sample, logistic
+regression with the model set's formula (as written, with any interactions or
+transformations) is fitted in-sample, without cross-fitting: this block measures the sampling
+variability of the fitted model, not its out-of-sample accuracy (see
 \code{\link[=bootstrap_rank_instability]{bootstrap_rank_instability()}}). The refitted model predicts logits for every
-ORIGINAL patient; their percentile ranks form \code{bootstrap$rank} (n x B). When a factor level
+ORIGINAL patient; their percentile ranks form \code{bootstrap$rank} (n x B). These logits are not
+clipped by default, while the cross-fitted scores are clipped to \verb{[clip, 1 - clip]}; under
+near-separation many cross-fitted scores can then share the clipped value (tied ranks) while
+their bootstrap ranks stay distinct. \code{clip_bootstrap = TRUE} clips the bootstrap scores in the
+same way. The default (\code{FALSE}) keeps the method as it was studied. When a factor level
 of the original data is absent from the sample, the refit uses the full-data design matrix
 and scores those patients as the reference level (the rule of the cross-fitted logistic
 model); the samples concerned are listed in
@@ -136,8 +148,10 @@ keeps its column, filled with \code{NA}, so that every matrix is n x B.
 
 Per-task seeds are derived in the main process from \code{seed}, passed to each worker and
 applied with \code{\link[withr:with_seed]{withr::with_seed()}}; \code{m_order = "random"} and the bootstrap draws are
-therefore reproducible and identical for \code{cores = 1} and \code{cores > 1}. Parallel runs use
-\code{\link[parallel:mclapply]{parallel::mclapply()}} on Unix and fall back to a serial run on Windows.
+therefore reproducible and identical for \code{cores = 1} and \code{cores > 1}. The matching tasks,
+the bootstrap draws and the bootstrap matching each have their own family of derived seeds,
+separate from the model fits; with the default order \code{"largest"} matching uses no random
+numbers. Parallel runs use \code{\link[parallel:mclapply]{parallel::mclapply()}} on Unix; on Windows the run is serial.
 }
 
 \examples{

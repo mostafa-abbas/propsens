@@ -27,7 +27,9 @@ propensity_sensitivity(
   m_order = "largest",
   caliper = NULL,
   cores = 1,
-  seed = 1
+  seed = 1,
+  min_treated_kept = NULL,
+  clip_bootstrap = FALSE
 )
 
 \method{print}{propensity_sensitivity}(x, digits = 3, ...)
@@ -41,19 +43,24 @@ propensity_sensitivity(
 \arguments{
 \item{x}{A \code{matchit} object (from \code{MatchIt::matchit()}) or a two-sided formula such as
 \code{treat ~ x1 + x2}. Only baseline covariates belong in the formula; exclude outcomes,
-identifiers and post-treatment variables (for example, \code{treat ~ . - death - id}).}
+identifiers and post-treatment variables (for example, \code{treat ~ . - death - id}). The
+treatment may be numeric 0/1, logical or a two-level factor (see
+\code{\link[=fit_propensity_models]{fit_propensity_models()}}).}
 
 \item{data}{The data frame. Required with a formula; with a \code{matchit} object it is looked up
 from the object's call when \code{NULL}.}
 
-\item{algorithms}{The propensity model set. The default is the set evaluated in a
-manuscript in preparation:
-logistic regression, BART and the GRF probability forest (with the default \code{seeds}, three
-seeds for each tree algorithm: seven models; packages 'dbarts' and 'grf'). A faster set
-is available with \code{algorithms = c("logistic_regression", "random_forest", "gradient_boosting")}; it is not part of that evaluation. See
-\code{\link[=fit_propensity_models]{fit_propensity_models()}} for every option and the fixed settings.}
+\item{algorithms}{The propensity model set. The default is logistic regression, BART and the
+GRF probability forest (with the default \code{seeds}, three seeds for each tree algorithm: seven
+models; packages 'dbarts' and 'grf'). A faster set is available with
+\code{algorithms = c("logistic_regression", "random_forest", "gradient_boosting")} (packages
+'randomForest' and 'gbm'); it has been studied less. See \code{\link[=fit_propensity_models]{fit_propensity_models()}} for
+every option and the fixed settings.}
 
-\item{seeds, folds, cross_fit, n_trees, quality_tolerance}{Passed to
+\item{seeds}{\code{1:k}, the number of seeds per tree algorithm (default \code{1:3}). Only the number
+is used; set the randomness with \code{seed}.}
+
+\item{folds, cross_fit, n_trees, quality_tolerance}{Passed to
 \code{\link[=fit_propensity_models]{fit_propensity_models()}}. \code{n_trees} applies to gradient boosting only.}
 
 \item{balance_rule}{The balance part of the quality gate: \code{"relative"} (default),
@@ -70,23 +77,36 @@ standardized mean difference on main terms (default 0.10). Used only with
 \code{balance_rule = "absolute"}.}
 
 \item{bootstrap_samples}{Number of logistic bootstrap refits, for the bootstrap rank
-instability and the bootstrap pair recurrence (default 20; 0 for none).}
+instability and the bootstrap pair recurrence: 0 for none, otherwise at least 2
+(default 20).}
 
 \item{covariates}{Data frame of covariates for the control spread and the balance
 statistics. Its rows must be the same patients in the same order as \code{data}; when both
 have row names other than the default and they differ, the function stops. \code{NULL}
 (default) uses the source columns of the formula's right-hand side, from \code{data}, resolved
 with R's formula rules: \code{.} means every other column and exclusions such as \code{- death}
-are respected; \code{I(age^2)} gives \code{age}, \code{age:diabetes} gives \code{age} and \code{diabetes}.}
+are respected; \code{I(age^2)} gives \code{age}, \code{age:diabetes} gives \code{age} and \code{diabetes}.
+Character columns are an error (convert them to factors).}
 
 \item{replace, m_order, caliper}{Matching options for the formula interface (without replacement,
 order \code{"largest"}, no caliper by default; the caliper is in standard deviations of each
 model's logit). With a \code{matchit} object they are read from the object and must not be
 given.}
 
-\item{cores}{Number of cores (default 1).}
+\item{cores}{Number of cores (default 1). Run time grows with the number of patients and
+covariates (about a minute for 614 patients and 7 covariates; about 16 minutes for 5,735
+patients and 50 covariates on one core); on Unix, \code{cores} runs the models in parallel.}
 
-\item{seed}{Integer seed from which every other seed is derived.}
+\item{seed}{Integer seed from which every other seed is derived (fold split, models,
+bootstrap). See the section "Seeds".}
+
+\item{min_treated_kept}{\code{NULL} (default, off) or a share between 0 and 1: with a caliper, a
+model that keeps a smaller share of the treated patients fails the quality gate and is left
+out before the relative balance limit is computed.}
+
+\item{clip_bootstrap}{\code{FALSE} (default) or \code{TRUE}: clip the bootstrap refits' scores to
+\verb{[0.001, 0.999]} as the cross-fitted scores are. The default keeps the method as it was
+studied; see \code{\link[=match_each_model]{match_each_model()}}.}
 
 \item{digits}{Significant digits for printed numbers.}
 
@@ -97,54 +117,110 @@ given.}
 \item{row.names, optional}{Ignored; present for the generic.}
 }
 \value{
-An object of class \code{"propensity_sensitivity"}: a list with \code{patients} (one row per
-patient: \code{id}, \code{treated}, \code{rank_disagreement}, \code{rank_disagreement_between},
-\code{rank_disagreement_within}, \code{logit_disagreement}, \code{control_spread},
-\code{control_spread_scaled}, \code{pair_recurrence_models}, \code{pair_recurrence_bootstrap},
-\code{outside_support}, \code{logistic_score}; the treated-only measures are \code{NA} for untreated
-patients),
-\code{models} (one row per model plus the reference row), \code{summary} (a table of the study-level
-numbers with and without the gate, plus flags), \code{quality_gate_left_fewer_than_two_models},
-\code{balance_spread} (spread tables with and without the gate), \code{bootstrap_rank_instability}
-(see \code{\link[=bootstrap_rank_instability]{bootstrap_rank_instability()}}; \code{NULL} without bootstrap refits; its study-level value
-is also the row \code{bootstrap_rank_instability_treated} of the summary table; the summary
-table also has \code{pair_instability_models_mean_treated}, 1 minus
-\code{pair_recurrence_models_mean_treated}), \code{settings} and
-\code{components}
-(the model set and the match set). \code{components$model_set} is the fitted
-\code{\link[=fit_propensity_models]{fit_propensity_models()}} object, with every model's cross-fitted \code{probability}, \code{logit}
-and \code{rank}, so that its scores can be reused (for example in another estimator) without
-refitting; \code{summary$models_used} names the models in use.
+An object of class \code{"propensity_sensitivity"}: a list with
+\itemize{
+\item \code{patients}: one row per patient (\code{id}, \code{treated}, \code{rank_disagreement},
+\code{rank_disagreement_between}, \code{rank_disagreement_within}, \code{logit_disagreement},
+\code{control_spread}, \code{control_spread_scaled}, \code{pair_recurrence_models},
+\code{pair_recurrence_bootstrap}, \code{outside_support}, \code{logistic_score}; the treated-only measures
+are \code{NA} for untreated patients). These columns describe the spread over patients; they
+are not per-patient flags.
+\item \code{models}: one row per model (fit, balance, \code{treated_kept}, the gate columns, \code{in_use} =
+kept, \code{gate_note}), plus the row of your own model for a \code{matchit} object.
+\item \code{summary}: a list with \code{table} (the study-level numbers with the gate, \code{with_gate}, and
+without it, \code{without_gate}), \code{quality_gate_left_fewer_than_two_models},
+\code{reference_model_not_kept}, \code{models_used} (the kept models), \code{kept_algorithms},
+\code{kept_algorithms_count}, \code{kept_models_one_algorithm}, \code{pair_recurrence_floor_models},
+\code{pair_instability_maximum} and
+\code{pair_recurrence_expected_ceiling_bootstrap_uncorrected}.
+\item \code{quality_gate_left_fewer_than_two_models} and \code{kept_algorithms_count} (also at the top
+level, for scripts).
+\item \code{balance_spread}: spread tables with and without the gate.
+\item \code{bootstrap_rank_instability}: see \code{\link[=bootstrap_rank_instability]{bootstrap_rank_instability()}}; \code{NULL} without
+bootstrap refits.
+\item \code{settings} and \code{components} (\code{model_set}, the fitted \code{\link[=fit_propensity_models]{fit_propensity_models()}} object
+with every model's cross-fitted \code{probability}, \code{logit} and \code{rank}, so that the scores can be
+reused without refitting; and \code{match_set}).
+}
 }
 \description{
-The one-call diagnostic. It refits the propensity model with
-every algorithm of the model set, re-matches with the analyst's matching options, applies the
-quality gate, and reports rank disagreement (the primary summary), pair instability (the second
-summary of the same gated set: 1 minus the pair recurrence across models; exploratory), the
-bootstrap rank instability of the logistic model, control spread and pair recurrence, and
-study-level balance spread. No outcome is used.
-Rank disagreement is a study-level diagnostic; read it for the study as a whole, not per
-patient. The diagnostics are evaluated in a manuscript in preparation.
-When fewer than two models pass the quality gate, \code{print()} and \code{summary()} say so first: the
-diagnostic is then outside the setting where it was evaluated.
+How much does a matched design depend on which of several similarly good propensity models is
+used? The function refits the propensity model with every algorithm of the model set, repeats
+the analyst's matching with each model, keeps the models that pass a quality gate (the kept
+models), and describes how much the kept models disagree. No outcome is used.
+}
+\details{
+Every summary is study-level: read it for the study as a whole. Rank disagreement is the
+primary summary. Pair instability, rank disagreement with equal weight per algorithm and the
+between/within-algorithm ratio are exploratory. Bootstrap rank instability, balance spread and
+control spread are descriptive. The per-patient columns of \code{patients} (and of
+\code{as.data.frame()}) describe how the disagreement is spread over the patients; they are not
+flags for individual patients. No thresholds for a "large" value exist yet.
+
+These diagnostics have been studied in the author's simulations and benchmark analyses; a
+methods paper is in preparation. No peer-reviewed evaluation exists yet.
+
+Two situations raise an R warning and a block in \code{print()} and \code{summary()}: fewer than two
+models pass the quality gate (every model is then used, so there is no set of similarly good
+models to compare), and the kept models are seeds of a single algorithm (rank disagreement and
+pair instability then measure seed noise within that algorithm).
 }
 \section{Steps}{
 
 \enumerate{
+\item All arguments, the treatment and the covariates are checked before any model is fitted.
 \item \code{\link[=fit_propensity_models]{fit_propensity_models()}} with the formula (cross-fitted scores by default).
 \item \code{\link[=match_each_model]{match_each_model()}} with the matching options and the logistic bootstrap block.
 \item \code{\link[=balance_spread]{balance_spread()}} for every model.
-\item Final quality gate: \code{passed_quality_gate = passed_logloss_gate & smd_max_main <= balance_limit}. With the default \code{balance_rule = "relative"} the limit is
+\item Quality gate: \code{passed_quality_gate = passed_logloss_gate & smd_max_main <= balance_limit}. With the default \code{balance_rule = "relative"} the limit is
 the smallest max |SMD| on main terms among the refitted models plus \code{balance_margin}
 (0.10), and never above \code{balance_cap} (0.25): a model is excluded only when its balance is
 clearly worse than the best model's. With \code{balance_rule = "relative_only"} the limit
 is the best model's value plus \code{balance_margin}, without the cap; use it as a sensitivity
-analysis when the cap excludes every model (many covariates). With \code{balance_rule = "absolute"} the limit is \code{balance_threshold} (0.10). If fewer than two models pass,
-every model is used and
-\code{quality_gate_left_fewer_than_two_models} is \code{TRUE} (applied to the final set).
+analysis when the cap excludes every model (many covariates). With \code{balance_rule = "absolute"} the limit is \code{balance_threshold} (0.10). With \code{min_treated_kept} set (off by
+default), a model that keeps a smaller share of the treated patients fails the gate and
+does not enter the best-model value of the relative rule. If fewer than two models pass,
+every model is used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}.
 \item \code{\link[=rank_disagreement]{rank_disagreement()}}, \code{\link[=control_spread]{control_spread()}}, \code{\link[=pair_recurrence]{pair_recurrence()}} and the balance spread on
-the final set (\code{summary} column \code{with_gate}) and on every model (\code{without_gate}).
+the kept models (\code{summary} column \code{with_gate}) and on every model (\code{without_gate}).
 }
+}
+
+\section{Seeds}{
+
+The fold split and every tree model depend on \code{seed}. On small data the kept models and every
+summary can change noticeably with \code{seed} (on lalonde, rank disagreement varied several-fold
+between seeds). Rerun with two or three values of \code{seed} and report all of them;
+\code{\link[=seed_sensitivity]{seed_sensitivity()}} does this. Rank disagreement is a standard deviation over the kept
+models, so it also depends on how many seeds each kept algorithm contributes; "rank
+disagreement, equal weight per algorithm" counts each algorithm once.
+}
+
+\section{What the summaries compare under a caliper}{
+
+With a caliper each model keeps a different subset of the treated patients, shown by
+\code{print()} for each kept model. The standardized mean differences compare the matched
+treated patients with their matched untreated partners; the energy distance
+(\code{cobalt::bal.init(estimand = "ATT")}) also measures the distance to the whole treated group,
+so it also grows when treated patients are dropped. Rank disagreement averages over all
+treated patients, matched or not; pair instability and control spread use the treated
+patients matched by at least one kept model. The gate does not look at the share of treated
+kept unless \code{min_treated_kept} is set: a model that keeps few treated patients can reach an
+easy balance and then set the relative limit for the others.
+}
+
+\section{Estimand}{
+
+Matching is 1:1 nearest-neighbour on the logit of each model's score, for the average
+treatment effect in the treated (ATT). Without replacement (the default of the formula
+interface and the more common applied choice) the result depends on the matching order, and
+late matches can be poor when untreated patients are not much more numerous than treated
+ones, so the matched estimate can keep some bias for the ATT. With replacement every treated
+patient gets its nearest untreated patient; under overlap and a correctly specified
+propensity model this targets the ATT, at the price of reused untreated patients and a
+variance that must account for it. With a caliper, treated patients without an eligible
+partner are dropped and the estimand is the effect in the retained treated patients, not the
+ATT.
 }
 
 \section{Reading a matchit object}{
@@ -153,22 +229,23 @@ From a \code{matchit} object the function reads the formula, the method, \code{r
 \code{m.order} (from the call; MatchIt's default for the ATT with a propensity score is
 \code{"largest"}) and the caliper. Only 1:1 nearest-neighbour matching on a propensity score for
 the ATT is supported, with or without replacement and with or without a caliper on the
-score; anything else stops with a clear error. MatchIt applies a caliper in standard
-deviations of the analyst's distance (over all patients); the same number of standard
+score; anything else (including \code{exact}, \code{mahvars}, \code{antiexact}, \code{s.weights}, \code{reuse.max},
+\code{unit.id} and calipers on covariates) stops with a clear error. MatchIt applies a caliper in
+standard deviations of the analyst's distance (over all patients); the same number of standard
 deviations is applied to the logit of every model here. When \code{data} is \code{NULL} the data is
 found by evaluating the object's \code{data} argument in the calling frame.
 }
 
-\section{Reference model}{
+\section{Your own model}{
 
-The analyst's own score (\code{x$distance}) is kept as the reference model, an extra row of
-\code{models} with \code{model_id = "reference"}. Its ranks come from \code{x$distance} (ranks do not depend
+The analyst's own score (\code{x$distance}) is kept as an extra row of \code{models} with
+\code{model_id = "reference"}. Its ranks come from \code{x$distance} (ranks do not depend
 on the scale) and its balance statistics from \code{x$weights}. Its log-loss, Brier score and
 c-statistic are \code{NA}: it is an in-sample score from the user's object and is not comparable
-with the cross-fitted scores. Its quality gate is judged on balance only; when it fails, the
-row is flagged "reference model outside the equally-reasonable set". It is never one of the
-models in use. \code{summary} reports its mean absolute rank difference from the models in use,
-over treated patients: the mean over treated \code{i} and models \code{m} of \verb{|r_ref(i) - r_m(i)|}.
+with the cross-fitted scores. It is judged on balance only: "kept by the gate" or "not kept by
+the gate (its balance is above the limit)". It is never one of the models compared.
+\code{summary} reports its mean absolute rank difference from the kept models, over treated
+patients: the mean over treated \code{i} and models \code{m} of \verb{|r_ref(i) - r_m(i)|}.
 }
 
 \examples{
@@ -185,7 +262,8 @@ sensitivity
 summary(sensitivity)
 head(as.data.frame(sensitivity))
 \donttest{
-# The defaults: logistic regression, BART x 3, GRF probability forest x 3 (about a minute).
-propensity_sensitivity(matched)
+# The default model set with one seed per tree algorithm (three models), to keep the example
+# short; an analysis uses the default seeds = 1:3 (seven models, about a minute here).
+propensity_sensitivity(matched, seeds = 1, bootstrap_samples = 5)
 }
 }

@@ -1,16 +1,20 @@
 #' Bootstrap rank instability of the logistic propensity model
 #'
-#' The sampling noise of the analyst's logistic model: the logistic model with the formula's main
-#' terms is refitted on `bootstrap_samples` nonparametric bootstrap samples of all patients, the
+#' Descriptive. The sampling noise of the analyst's logistic model: logistic regression with the
+#' formula as written (including any interactions or transformations) is refitted on
+#' `bootstrap_samples` nonparametric bootstrap samples of all patients, the
 #' original patients are ranked by each refit's logit (percentile rank
 #' `rank(logit, ties = "average") / n`, on a 0 to 1 scale), and for each patient the standard
 #' deviation of the rank over the refits is taken. The study-level value is the mean over treated
 #' patients. A bootstrap sample with fewer than 10 treated or 10 untreated patients is skipped (the
 #' rule of [match_each_model()]).
 #'
-#' It uses the covariates and the treatment only, no outcome. It is evaluated next to rank
-#' disagreement in a manuscript in preparation; report the two together. It describes the
-#' analyst's logistic model only, whatever distance the `matchit` object used.
+#' It uses the covariates and the treatment only, no outcome. Report it next to rank
+#' disagreement: it shows how much the logistic model's ranks move from sampling alone. It
+#' describes the analyst's logistic model only, whatever distance the `matchit` object used.
+#' The refits' scores are not clipped by default, unlike the cross-fitted scores (see
+#' `clip_bootstrap`). These diagnostics have been studied in the author's simulations and
+#' benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet.
 #'
 #' @param x One of: a `propensity_sensitivity` object or a `match_set` from
 #'   [match_each_model()] (the stored bootstrap ranks are used, nothing is refitted); a `matchit`
@@ -22,6 +26,9 @@
 #' @param cores Number of cores (default 1). Not used for stored ranks.
 #' @param seed Integer seed from which every other seed is derived; the same seed gives the
 #'   bootstrap samples of [match_each_model()]. Not used for stored ranks.
+#' @param clip_bootstrap `FALSE` (default) or `TRUE`: clip the refits' scores to
+#'   `[0.001, 0.999]`, the default `clip` of [fit_propensity_models()]. Not used for stored
+#'   ranks.
 #' @return An object of class `"bootstrap_rank_instability"`: a list with `patients` (one row per
 #'   patient: `id`, `treated`, `rank_instability`), `summary` (`mean_treated`, `samples_used`,
 #'   `samples_requested`, `samples_skipped`) and `settings`. `mean_treated` is `NA` when fewer
@@ -36,7 +43,7 @@
 #' instability$summary$mean_treated
 #' @export
 bootstrap_rank_instability <- function(x, data = NULL, bootstrap_samples = 20, cores = 1,
-                                       seed = 1) {
+                                       seed = 1, clip_bootstrap = FALSE) {
   if (inherits(x, "propensity_sensitivity")) x <- x$components$match_set
   if (inherits(x, "match_set")) {
     if (is.null(x$bootstrap)) {
@@ -65,12 +72,15 @@ bootstrap_rank_instability <- function(x, data = NULL, bootstrap_samples = 20, c
   check_single_integer(bootstrap_samples, "bootstrap_samples", minimum = 2)
   check_single_integer(cores, "cores", minimum = 1)
   check_single_integer(seed, "seed")
+  check_true_false(clip_bootstrap, "clip_bootstrap")
+  data <- treatment_as_0_1(formula, data)
   prepared <- prepare_model_data(formula, data)
   row_ids <- rownames(data)
-  # The matching inside the bootstrap block does not enter the ranks.
+  # Only the ranks are needed, so the bootstrap samples are not matched.
   options <- list(replace = TRUE, ratio = 1L, m_order = "largest", caliper = NULL)
   bootstrap <- bootstrap_logistic_matches(formula, data, prepared$treatment, row_ids, options,
-                                          as.integer(bootstrap_samples), seed, cores)
+                                          as.integer(bootstrap_samples), seed, cores,
+                                          clip = if (clip_bootstrap) 0.001, match = FALSE)
   instability_from_ranks(bootstrap$rank, prepared$treatment, row_ids, "refitted")
 }
 

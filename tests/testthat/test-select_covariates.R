@@ -45,9 +45,9 @@ test_that("transformations and interactions give their source columns", {
 test_that("an excluded outcome never enters the balance check (end to end)", {
   study <- make_study()
   run <- function(x, data = study) {
-    propensity_sensitivity(x, data = data, algorithms = c("logistic_regression",
-                                                          "gradient_boosting"),
-                           seeds = 1, n_trees = 50, bootstrap_samples = 0, seed = 2)
+    sensitivity_quietly(x, data = data, algorithms = c("logistic_regression",
+                                                       "gradient_boosting"),
+                        seeds = 1, n_trees = 50, bootstrap_samples = 0, seed = 2)
   }
   dot <- run(treat ~ . - death - patient_id)
   explicit <- run(treat ~ age + diabetes + sex)

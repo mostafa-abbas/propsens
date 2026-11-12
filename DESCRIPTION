@@ -4,13 +4,17 @@ Title: Propensity Model Sensitivity Diagnostics for Matched Studies
 Version: 0.1.0
 Authors@R: person(given = "Mostafa M.", family = "Abbas",
                   email = "mostafa.mn.abbas@gmail.com", role = c("aut", "cre", "cph"))
-Description: Outcome-free diagnostics that measure how much a matched study
-    depends on the choice of propensity model. Logistic regression, Bayesian
-    additive regression trees and a generalized random forest are each used
-    for 1:1 nearest-neighbour matching with cross-fitted scores; the package
-    reports study-level rank disagreement, bootstrap rank instability of the
-    logistic model and balance spread across models, applies a quality gate,
-    and reads an existing 'MatchIt' object directly.
+Description: Outcome-free diagnostics of how much a matched design depends
+    on which of several similarly good propensity models is used. Logistic
+    regression, Bayesian additive regression trees and a generalized random
+    forest (cross-fitted scores) are each used for 1:1 nearest-neighbour
+    matching with the analyst's settings; a quality gate keeps the models that
+    fit and balance about as well as the best one, and the package reports
+    study-level rank disagreement, pair instability, bootstrap rank
+    instability of the logistic model and balance spread across the kept
+    models. It reads an existing 'MatchIt' object directly. The diagnostics
+    have been studied in the author's simulations; no peer-reviewed evaluation
+    exists yet.
 License: MIT + file LICENSE
 URL: https://github.com/mostafa-abbas/propsens, https://mostafa-abbas.github.io/propsens
 BugReports: https://github.com/mostafa-abbas/propsens/issues
@@ -21,17 +25,17 @@ Depends:
 Imports:
     MatchIt (>= 4.8.1),
     cobalt (>= 5.0.0),
-    randomForest,
-    gbm,
-    dbarts,
-    grf,
-    withr,
+    dbarts (>= 0.9-20),
+    grf (>= 2.0.0),
+    withr (>= 2.5.0),
     ggplot2 (>= 3.5.0),
     stats,
     splines,
-    parallel
+    parallel,
+    utils
 Suggests:
-    ATbounds,
+    randomForest,
+    gbm,
     glmnet,
     testthat (>= 3.0.0),
     knitr,

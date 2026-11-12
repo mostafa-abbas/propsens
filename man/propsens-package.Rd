@@ -6,13 +6,15 @@
 \alias{propsens-package}
 \title{propsens: Propensity Model Sensitivity Diagnostics for Matched Studies}
 \description{
-Outcome-free diagnostics that measure how much a matched study depends on
-the choice of propensity model. The definitions are given in the help pages and in
-\code{vignette("definitions", package = "propsens")}.
+Outcome-free diagnostics of how much a matched design depends on which of several similarly
+good propensity models is used. The definitions are given in the help pages and in
+\code{vignette("definitions", package = "propsens")}. These diagnostics have been studied in the
+author's simulations and benchmark analyses; a methods paper is in preparation. No
+peer-reviewed evaluation exists yet.
 }
 \details{
-The \code{importFrom} lines below declare the packages the diagnostics will use,
-so that \verb{R CMD check} sees every entry of \code{Imports} used.
+The \code{importFrom} lines below declare packages of \code{Imports} that are otherwise used only with
+\code{::}, so that \verb{R CMD check} sees every entry used.
 }
 \seealso{
 Useful links:
