@@ -6,7 +6,7 @@
 #' across-models and bootstrap versions are kept separate and are never mixed.
 #'
 #' **Across models.** For treated patient i, the modal partner is the untreated partner chosen
-#' most often by the models in use; the recurrence is the share of those models choosing it (see
+#' most often by the kept models; the recurrence is the share of those models choosing it (see
 #' the denominator rule below). Floor `1 / M` (every model picks a different untreated partner),
 #' ceiling 1.
 #'
@@ -28,9 +28,9 @@
 #'   the one that comes first in the data (smallest row position). The same rule is used across
 #'   models and across bootstrap resamples. With three models that all choose different
 #'   untreated partners, the recurrence is 1/3 whichever partner is called modal.
-#' * **Denominator across models.** The share is taken over the models in use that matched the
+#' * **Denominator across models.** The share is taken over the kept models that matched the
 #'   patient. Without a caliper every model matches every treated patient, so the denominator
-#'   is M, the number of models in use. With a caliper a model may leave a patient unmatched;
+#'   is M, the number of kept models. With a caliper a model may leave a patient unmatched;
 #'   that model is left out of the denominator, and a patient unmatched by every model gets
 #'   `NA`. The reported floor is `1 / M`.
 #' * **Denominator across bootstrap resamples.** Corrected: resamples in which both the patient

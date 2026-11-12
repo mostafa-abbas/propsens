@@ -86,8 +86,8 @@
 #' `model_id = "reference"`. Its ranks come from `x$distance` (ranks do not depend
 #' on the scale) and its balance statistics from `x$weights`. Its log-loss, Brier score and
 #' c-statistic are `NA`: it is an in-sample score from the user's object and is not comparable
-#' with the cross-fitted scores. It is judged on balance only: "kept by the gate" or "not kept by
-#' the gate (its balance is above the limit)". It is never one of the models compared.
+#' with the cross-fitted scores. It is judged on balance only, as "within the balance limit" or
+#' "above the balance limit"; it is never one of the models compared, so it is never "kept".
 #' `summary` reports its mean absolute rank difference from the kept models, over treated
 #' patients: the mean over treated `i` and models `m` of `|r_ref(i) - r_m(i)|`.
 #'
@@ -401,7 +401,9 @@ print.summary.propensity_sensitivity <- function(x, digits = 3, ...) {
     shown$every_model <- format_column(table$without_gate)
   }
   print(shown, row.names = FALSE, right = FALSE)
-  cat("\nModels (in_use = kept by the quality gate):\n")
+  cat("", wrap_text(paste("Models (in_use = kept by the quality gate; for your own model, the",
+                          "row `reference`, passed_quality_gate means within the balance",
+                          "limit):"), exdent = 0), sep = "\n")
   models <- x$models
   for (column in c("logloss", "smd_max_main", "smd_max_extended", "energy_distance", "ks_max",
                    "treated_kept")) {
@@ -542,10 +544,10 @@ balance_gate_limit <- function(smd_max_main, rule) {
   min(relative_limit, rule$cap)
 }
 
-# The R warning and the printed block when the gate fell back.
-fallback_text <- paste("WARNING: fewer than two models passed the quality gate, so there is no",
-                       "set of similarly good models to compare. Every model is used below;",
-                       "read the values as a description of all models, not of a kept set.")
+# The R warning when the gate fell back; print() shows it with the prefix "WARNING: ".
+fallback_text <- paste("Fewer than two models passed the quality gate, so there is no set of",
+                       "similarly good models to compare. Every model is used below; read the",
+                       "values as a description of all models, not of a kept set.")
 
 one_algorithm_text <- function(algorithms, fallback = FALSE) {
   paste0("The ", if (fallback) "models in use" else "kept models",
@@ -615,7 +617,7 @@ report_lines <- function(x, digits = 3) {
                       if (fallback) "in use" else "kept", " (", algorithm_text,
                       "); log-loss within ", 100 * settings$quality_tolerance, " % of the best; ",
                       balance_rule_text(settings, digits), share_rule, ".")
-  c(if (fallback) wrap_text(fallback_text, exdent = 0),
+  c(if (fallback) wrap_text(paste0("WARNING: f", substring(fallback_text, 2)), exdent = 0),
     wrap_text(gate_line),
     if (one_algorithm) wrap_text(one_algorithm_text(algorithms, fallback), indent = 3),
     if (fallback) {
@@ -633,14 +635,18 @@ report_lines <- function(x, digits = 3) {
               indent = 3, exdent = 5),
     wrap_text(paste0("Between/within-algorithm ratio (exploratory; median over treated): ",
                      value("median_between_within_ratio_treated"),
-                     ". Disagreement between algorithms divided by disagreement between seeds ",
-                     "of the same algorithm; with three seeds per algorithm, seed noise alone ",
-                     "gives about 0.4."), indent = 3, exdent = 5),
+                     if (ratio_reference_applies(table, in_use)) {
+                       paste0(". Disagreement between algorithms divided by disagreement ",
+                              "between seeds of the same algorithm; with three seeds per ",
+                              "algorithm, seed noise alone gives about 0.4.")
+                     }), indent = 3, exdent = 5),
     wrap_text(paste0("Pair instability (exploratory; study mean over treated): ",
-                     value("pair_instability_models_mean_treated"), " of a possible ",
-                     format_number(1 - 1 / n_used, digits), " with ", n_used, " models. ",
-                     "It is high whenever many untreated patients have similar scores, even ",
-                     "when the models agree."), indent = 3, exdent = 5),
+                     value("pair_instability_models_mean_treated"),
+                     if (n_used >= 2) {
+                       paste0(" of a possible ", format_number(1 - 1 / n_used, digits), " with ",
+                              n_used, " models. It is high whenever many untreated patients ",
+                              "have similar scores, even when the models agree.")
+                     }), indent = 3, exdent = 5),
     wrap_text(paste0("Bootstrap rank instability of the logistic model (descriptive): ",
                      value("bootstrap_rank_instability_treated")), indent = 3, exdent = 5),
     wrap_text(paste0("3. Balance spread (descriptive; range of max |SMD| main terms over the ",
@@ -654,6 +660,14 @@ report_lines <- function(x, digits = 3) {
                      "typical matched pair (scale: the matches of ", scale_model_name(x), ")")),
     reference_lines(x, digits),
     matching_lines(x))
+}
+
+# The reading "seed noise alone gives about 0.4" holds for three seeds per algorithm: it is
+# printed only when the ratio exists and every kept tree algorithm has exactly three seeds.
+ratio_reference_applies <- function(table, in_use) {
+  ratio <- table$with_gate[table$quantity == "median_between_within_ratio_treated"]
+  trees <- in_use$algorithm[!in_use$algorithm %in% single_fit_algorithms]
+  length(ratio) == 1 && !is.na(ratio) && length(trees) > 0 && all(table(trees) == 3)
 }
 
 scale_model_name <- function(x) {
@@ -671,11 +685,12 @@ reference_lines <- function(x, digits = 3) {
                               digits)
   wrap_text(paste0("Your own model (", x$settings$reference_label, "): ",
                    if (isTRUE(reference$passed_quality_gate)) {
-                     "kept by the gate (its balance is within the limit)"
+                     "within the balance limit"
                    } else {
-                     "not kept by the gate (its balance is above the limit)"
+                     "above the balance limit"
                    },
-                   "; mean absolute rank difference from the ",
+                   " (judged on balance only; it is not one of the compared models); ",
+                   "mean absolute rank difference from the ",
                    if (isTRUE(x$quality_gate_left_fewer_than_two_models)) "models in use" else
                      "kept models", ": ", difference))
 }
@@ -805,8 +820,8 @@ reference_model_row <- function(reference, covariates, treatment, balance_limit,
     is_reference = TRUE,
     gate_note = paste0("your own model: an in-sample score from the matchit object, so its ",
                        "log-loss is not comparable and not computed; judged on balance only: ",
-                       if (passed) "kept by the gate (its balance is within the limit)" else
-                         "not kept by the gate (its balance is above the limit)"),
+                       if (passed) "within the balance limit" else "above the balance limit",
+                       "; never one of the compared models"),
     treated_kept = sum(reference$weights[treated] > 0) / sum(treated),
     stringsAsFactors = FALSE
   )

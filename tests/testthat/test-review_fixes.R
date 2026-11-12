@@ -46,8 +46,9 @@ test_that("a kept set from one algorithm raises a warning, a flag and a printed 
 test_that("the gate fallback raises an R warning as well as the printed block", {
   run <- collect_warnings(quick_run(balance_rule = "absolute", balance_threshold = 0.001))
   expect_true(run$value$quality_gate_left_fewer_than_two_models)
-  fallback_start <- paste("WARNING: fewer than two models passed the quality gate, so there is",
-                          "no set of similarly good models to compare.")
+  # The R warning has no "WARNING:" prefix; print() adds it.
+  fallback_start <- paste("Fewer than two models passed the quality gate, so there is no set",
+                          "of similarly good models to compare.")
   expect_true(any(startsWith(run$warnings, fallback_start)))
   expect_true(any(grepl("^WARNING", utils::capture.output(print(run$value)))))
 })
@@ -288,4 +289,91 @@ test_that("the matching seeds are a family of their own", {
                                function(i) derive_seed(1, i), integer(1))
   expect_length(intersect(model_seeds, matching_seeds), 0)
   expect_length(intersect(bootstrap_draws, bootstrap_matching), 0)
+})
+
+# ---- second review ----------------------------------------------------------------------
+
+test_that("seed_sensitivity() finds the data of a matchit object made inside a function", {
+  run_inside <- function() {
+    local_data <- lalonde
+    analyst <- MatchIt::matchit(review_formula, data = local_data, replace = TRUE)
+    seed_sensitivity(analyst, seeds = 1, algorithms = review_fast, model_seeds = 1,
+                     n_trees = 50, bootstrap_samples = 0)
+  }
+  expect_s3_class(run_inside(), "seed_sensitivity")
+})
+
+test_that("seed_sensitivity() finds data frames named like its own variables", {
+  # A data frame named `x` (the argument holding the matchit object) or `seeds`.
+  for (name in c("x", "seeds")) {
+    environment <- new.env()
+    assign(name, lalonde, envir = environment)
+    analyst <- eval(bquote(MatchIt::matchit(.(review_formula), data = .(as.name(name)),
+                                            replace = TRUE)), environment)
+    result <- eval(quote(seed_sensitivity(analyst, seeds = 2, algorithms = review_fast,
+                                          model_seeds = 1, n_trees = 50,
+                                          bootstrap_samples = 0)),
+                   list2env(list(analyst = analyst, review_fast = review_fast), environment))
+    expect_identical(result$table$seed, 2)
+  }
+})
+
+test_that("the ratio reading and the pair-instability maximum are printed only when they apply", {
+  # One seed per tree algorithm: the ratio is NA, so no reading of it.
+  one_seed <- quiet_gate(quick_run(replace = TRUE, seed = 2))
+  expect_false(grepl("seed noise alone gives about 0.4", printed_text(one_seed)))
+  # One model only: no "of a possible" sentence.
+  single <- quiet_gate(propensity_sensitivity(review_formula, data = lalonde,
+                                              algorithms = "logistic_regression",
+                                              bootstrap_samples = 0))
+  expect_false(grepl("of a possible", printed_text(single)))
+  # Three seeds per tree algorithm: the reading is printed when the ratio exists.
+  three <- quiet_gate(propensity_sensitivity(review_formula, data = lalonde,
+                                             algorithms = review_fast, seeds = 1:3, n_trees = 50,
+                                             bootstrap_samples = 0, replace = TRUE, seed = 2))
+  table <- three$summary$table
+  ratio <- table$with_gate[table$quantity == "median_between_within_ratio_treated"]
+  kept <- three$models[three$models$in_use & three$models$algorithm != "logistic_regression", ]
+  if (!is.na(ratio) && all(table(kept$algorithm) == 3)) {
+    expect_match(printed_text(three), "seed noise alone gives about 0.4", fixed = TRUE)
+  }
+})
+
+test_that("methods_text() builds the Methods and Results sentences from the result", {
+  normal <- quiet_gate(quick_run(replace = TRUE, seed = 2))
+  text <- methods_text(normal)
+  expect_named(text, c("methods", "results"))
+  expect_match(text[["methods"]],
+               "logistic regression, random forest and gradient boosting", fixed = TRUE)
+  expect_match(text[["methods"]], "1:1 nearest-neighbour matching with replacement")
+  expect_match(text[["methods"]], sprintf("seed %d", normal$settings$seed))
+  if (!normal$quality_gate_left_fewer_than_two_models) {
+    expect_match(text[["methods"]], sprintf("%d of %d models were kept (",
+                                            length(normal$summary$models_used), 3L),
+                 fixed = TRUE)
+    expect_match(text[["methods"]], "For the kept models we report")
+  }
+  table <- normal$summary$table
+  rank_value <- table$with_gate[table$quantity == "mean_rank_disagreement_treated"]
+  expect_match(text[["results"]], sprintf("%.3f", rank_value), fixed = TRUE)
+  # After a fallback: all models.
+  fallback <- quiet_gate(quick_run(balance_rule = "absolute", balance_threshold = 0.001))
+  fallback_text <- methods_text(fallback)
+  expect_match(fallback_text[["methods"]], "so all models were used")
+  expect_match(fallback_text[["methods"]], "For all models we report")
+  expect_match(fallback_text[["results"]], "across all models")
+  expect_error(methods_text("not a result"), "propensity_sensitivity object")
+})
+
+test_that("your own model is described against the balance limit, never as kept", {
+  analyst <- MatchIt::matchit(review_formula, data = lalonde, replace = TRUE)
+  result <- quiet_gate(propensity_sensitivity(analyst, data = lalonde, algorithms = review_fast,
+                                              seeds = 1, n_trees = 50, bootstrap_samples = 0))
+  printed <- printed_text(result)
+  expect_match(printed, "Your own model \\(glm, logit\\): (within|above) the balance limit")
+  expect_false(grepl("Your own model[^.]*kept", printed))
+  built <- ggplot2::ggplot_build(plot(result, type = "models"))
+  reference_rows <- built$plot$data$model_id == "reference"
+  expect_true(all(built$plot$data$gate[reference_rows] %in%
+                    c("own: within limit", "own: above limit")))
 })

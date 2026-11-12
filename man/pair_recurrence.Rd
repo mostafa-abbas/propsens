@@ -41,7 +41,7 @@ across-models and bootstrap versions are kept separate and are never mixed.
 }
 \details{
 \strong{Across models.} For treated patient i, the modal partner is the untreated partner chosen
-most often by the models in use; the recurrence is the share of those models choosing it (see
+most often by the kept models; the recurrence is the share of those models choosing it (see
 the denominator rule below). Floor \code{1 / M} (every model picks a different untreated partner),
 ceiling 1.
 
@@ -65,9 +65,9 @@ characteristics is harmless.
 the one that comes first in the data (smallest row position). The same rule is used across
 models and across bootstrap resamples. With three models that all choose different
 untreated partners, the recurrence is 1/3 whichever partner is called modal.
-\item \strong{Denominator across models.} The share is taken over the models in use that matched the
+\item \strong{Denominator across models.} The share is taken over the kept models that matched the
 patient. Without a caliper every model matches every treated patient, so the denominator
-is M, the number of models in use. With a caliper a model may leave a patient unmatched;
+is M, the number of kept models. With a caliper a model may leave a patient unmatched;
 that model is left out of the denominator, and a patient unmatched by every model gets
 \code{NA}. The reported floor is \code{1 / M}.
 \item \strong{Denominator across bootstrap resamples.} Corrected: resamples in which both the patient
@@ -78,9 +78,11 @@ Skipped resamples are left out of both.
 
 \section{Quality gate}{
 
-With \code{use_gate = TRUE} only the models that passed the log-loss gate are used. If fewer than
-two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}
-. The flag reports the gate's outcome whatever \code{use_gate} is.
+"Kept models" in this help page are the models the function uses: the models given in
+\code{models} (as \code{\link[=propensity_sensitivity]{propensity_sensitivity()}} passes the models kept by its quality gate), or with
+\code{use_gate = TRUE} the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}.
+The flag reports the gate's outcome whatever \code{use_gate} is.
 }
 
 \examples{

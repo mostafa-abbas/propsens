@@ -15,10 +15,10 @@
 #' matched untreated partners, while the energy distance (`estimand = "ATT"`) also measures the
 #' distance to the whole treated group, so it also grows when treated patients are dropped.
 #'
-#' The spread of each statistic over the models in use is its range (max - min), its standard
+#' The spread of each statistic over the kept models is its range (max - min), its standard
 #' deviation, and the worst (largest) value with the model that produced it. The table of
 #' models lists every model of the match set with an `in_use` column, so that the balance part
-#' of the quality gate can read every model; the spread uses the models in use only. The
+#' of the quality gate can read every model; the spread uses the kept models only. The
 #' oracle entry and the bootstrap block are never used.
 #'
 #' @section cobalt settings (verified against cobalt 5.0.0):

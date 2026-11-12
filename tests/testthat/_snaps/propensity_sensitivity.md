@@ -24,10 +24,7 @@
            random_forest_2 100 %
       2. Rank disagreement (primary; study mean over treated): 0.00804
          Equal weight per algorithm (exploratory): NA
-         Between/within-algorithm ratio (exploratory; median over treated): NA.
-           Disagreement between algorithms divided by disagreement between seeds of
-           the same algorithm; with three seeds per algorithm, seed noise alone
-           gives about 0.4.
+         Between/within-algorithm ratio (exploratory; median over treated): NA
          Pair instability (exploratory; study mean over treated): 0.368 of a
            possible 0.5 with 2 models. It is high whenever many untreated patients
            have similar scores, even when the models agree.
@@ -37,8 +34,9 @@
       Control spread (descriptive; mean scaled over treated): 1.02; 1 = the partners
          chosen by different models differ as much as a typical matched pair (scale:
          the matches of logistic_regression_1)
-      Your own model (user): kept by the gate (its balance is within the limit);
-         mean absolute rank difference from the kept models: 0.101
+      Your own model (user): within the balance limit (judged on balance only; it is
+         not one of the compared models); mean absolute rank difference from the
+         kept models: 0.101
       Matching: 1:1 nearest neighbour on the logit, with replacement, order
          "largest", caliper none; target: ATT.
 
@@ -68,10 +66,7 @@
            random_forest_2 100 %
       2. Rank disagreement (primary; study mean over treated): 0.00804
          Equal weight per algorithm (exploratory): NA
-         Between/within-algorithm ratio (exploratory; median over treated): NA.
-           Disagreement between algorithms divided by disagreement between seeds of
-           the same algorithm; with three seeds per algorithm, seed noise alone
-           gives about 0.4.
+         Between/within-algorithm ratio (exploratory; median over treated): NA
          Pair instability (exploratory; study mean over treated): 0.368 of a
            possible 0.5 with 2 models. It is high whenever many untreated patients
            have similar scores, even when the models agree.
@@ -81,8 +76,9 @@
       Control spread (descriptive; mean scaled over treated): 1.02; 1 = the partners
          chosen by different models differ as much as a typical matched pair (scale:
          the matches of logistic_regression_1)
-      Your own model (user): kept by the gate (its balance is within the limit);
-         mean absolute rank difference from the kept models: 0.101
+      Your own model (user): within the balance limit (judged on balance only; it is
+         not one of the compared models); mean absolute rank difference from the
+         kept models: 0.101
       Matching: 1:1 nearest neighbour on the logit, with replacement, order
          "largest", caliper none; target: ATT.
       
@@ -136,7 +132,8 @@
        0.0361     
        0.0857     
       
-      Models (in_use = kept by the quality gate):
+      Models (in_use = kept by the quality gate; for your own model, the row
+      `reference`, passed_quality_gate means within the balance limit):
                     model_id           algorithm logloss smd_max_main
        logistic_regression_1 logistic_regression   0.412        0.271
              random_forest_1       random_forest   0.363        0.160
@@ -173,7 +170,7 @@
             above balance_cap
         reference: your own model: an in-sample score from the matchit object, so
             its log-loss is not comparable and not computed; judged on balance only:
-            kept by the gate (its balance is within the limit)
+            within the balance limit; never one of the compared models
       
       Quality gate: log-loss within 5 % of the best; relative balance rule: max
          |SMD| main terms at most 0.10 above the best model's and at most 0.25

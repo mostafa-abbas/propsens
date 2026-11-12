@@ -1,7 +1,7 @@
 #' Per-patient control spread across propensity models
 #'
 #' Descriptive. ("Control" in the name means the untreated partner.) For each treated patient,
-#' collect the distinct untreated partners matched to it by the models in use and compute `s`,
+#' collect the distinct untreated partners matched to it by the kept models and compute `s`,
 #' the mean pairwise
 #' Mahalanobis distance between their covariate vectors, with the covariance matrix of all n
 #' patients. `s = 0` when every model picks the same untreated partner, and `NA` when the
@@ -11,7 +11,7 @@
 #' model in use when the match set has no logistic regression model): 1 means the candidate
 #' partners differ from each other as much as a typical match differs from its treated patient.
 #' The scale model is the logistic regression match even when logistic regression is not one of
-#' the models in use; `print()` names it. When `D` is 0 (every scale pair is identical, for
+#' the kept models; `print()` names it. When `D` is 0 (every scale pair is identical, for
 #' example with a very tight caliper) `s_scaled` is `NA`, not infinite.
 #' The oracle entry and the bootstrap block are never used.
 #'

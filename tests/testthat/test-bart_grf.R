@@ -38,7 +38,7 @@ grf_fit <- function(x_train, treatment, x_test, settings) {
   as.numeric(predictions[, "1"])
 }
 
-test_that("the default set is the paper's, as in propensity_sensitivity()", {
+test_that("the default set is the same as in propensity_sensitivity()", {
   expect_identical(eval(formals(fit_propensity_models)$algorithms),
                    c("logistic_regression", "bart", "grf_probability"))
   expect_identical(eval(formals(fit_propensity_models)$algorithms),
@@ -135,7 +135,7 @@ test_that("the package's BART and GRF helpers equal direct library calls", {
   }
 })
 
-test_that("propensity_sensitivity() defaults to the model set of the paper", {
+test_that("propensity_sensitivity() defaults to logistic regression, BART and GRF", {
   expect_identical(eval(formals(propensity_sensitivity)$algorithms),
                    c("logistic_regression", "bart", "grf_probability"))
   expect_identical(eval(formals(propensity_sensitivity)$seeds), 1:3)
@@ -156,7 +156,7 @@ test_that("propensity_sensitivity() defaults to the model set of the paper", {
                      "grf_probability_2", "grf_probability_3"))
 })
 
-test_that("the fixed BART and GRF settings of the default are those of the paper", {
+test_that("the fixed BART and GRF settings of the default are as documented", {
   fitted_set <- small_set(c("logistic_regression", "bart", "grf_probability"), seeds = 1)
   expect_identical(fitted_set$settings$tree_settings$bart$n.trees, 75L)
   expect_identical(fitted_set$settings$tree_settings$bart$n.burn, 500L)

@@ -242,8 +242,8 @@ The analyst's own score (\code{x$distance}) is kept as an extra row of \code{mod
 \code{model_id = "reference"}. Its ranks come from \code{x$distance} (ranks do not depend
 on the scale) and its balance statistics from \code{x$weights}. Its log-loss, Brier score and
 c-statistic are \code{NA}: it is an in-sample score from the user's object and is not comparable
-with the cross-fitted scores. It is judged on balance only: "kept by the gate" or "not kept by
-the gate (its balance is above the limit)". It is never one of the models compared.
+with the cross-fitted scores. It is judged on balance only, as "within the balance limit" or
+"above the balance limit"; it is never one of the models compared, so it is never "kept".
 \code{summary} reports its mean absolute rank difference from the kept models, over treated
 patients: the mean over treated \code{i} and models \code{m} of \verb{|r_ref(i) - r_m(i)|}.
 }

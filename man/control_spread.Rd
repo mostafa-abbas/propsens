@@ -35,7 +35,7 @@ An object of class \code{"control_spread"}: a list with \code{patients} (one row
 }
 \description{
 Descriptive. ("Control" in the name means the untreated partner.) For each treated patient,
-collect the distinct untreated partners matched to it by the models in use and compute \code{s},
+collect the distinct untreated partners matched to it by the kept models and compute \code{s},
 the mean pairwise
 Mahalanobis distance between their covariate vectors, with the covariance matrix of all n
 patients. \code{s = 0} when every model picks the same untreated partner, and \code{NA} when the
@@ -45,7 +45,7 @@ Mahalanobis distance between a treated patient and its logistic-regression match
 model in use when the match set has no logistic regression model): 1 means the candidate
 partners differ from each other as much as a typical match differs from its treated patient.
 The scale model is the logistic regression match even when logistic regression is not one of
-the models in use; \code{print()} names it. When \code{D} is 0 (every scale pair is identical, for
+the kept models; \code{print()} names it. When \code{D} is 0 (every scale pair is identical, for
 example with a very tight caliper) \code{s_scaled} is \code{NA}, not infinite.
 The oracle entry and the bootstrap block are never used.
 }
@@ -60,9 +60,11 @@ Mahalanobis distance is \verb{sqrt((a - b)' S^-1 (a - b))}, the square root of w
 
 \section{Quality gate}{
 
-With \code{use_gate = TRUE} only the models that passed the log-loss gate are used. If fewer than
-two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}
-. The flag reports the gate's outcome whatever \code{use_gate} is.
+"Kept models" in this help page are the models the function uses: the models given in
+\code{models} (as \code{\link[=propensity_sensitivity]{propensity_sensitivity()}} passes the models kept by its quality gate), or with
+\code{use_gate = TRUE} the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}.
+The flag reports the gate's outcome whatever \code{use_gate} is.
 }
 
 \examples{

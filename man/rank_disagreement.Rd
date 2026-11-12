@@ -33,7 +33,7 @@ An object of class \code{"rank_disagreement"}: a list with \code{patients} (one 
 }
 \description{
 For each patient, \code{d} is the standard deviation over
-the models in use of the percentile rank \code{r_m(i) = rank(logit_m(i)) / n} (0 to 1 scale).
+the kept models of the percentile rank \code{r_m(i) = rank(logit_m(i)) / n} (0 to 1 scale).
 Rank disagreement, the study mean of \code{d} over treated patients, is the primary summary; it is
 a study-level summary, not a per-patient flag.
 }
@@ -58,9 +58,11 @@ Standard deviations use the n - 1 denominator.
 }
 \section{Quality gate}{
 
-With \code{use_gate = TRUE} only the models that passed the log-loss gate are used. If fewer than
-two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}
-. The flag reports the gate's outcome whatever \code{use_gate} is.
+"Kept models" in this help page are the models the function uses: the models given in
+\code{models} (as \code{\link[=propensity_sensitivity]{propensity_sensitivity()}} passes the models kept by its quality gate), or with
+\code{use_gate = TRUE} the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}.
+The flag reports the gate's outcome whatever \code{use_gate} is.
 }
 
 \examples{

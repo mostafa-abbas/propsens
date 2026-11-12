@@ -1,7 +1,7 @@
 #' Per-patient rank disagreement across propensity models
 #'
 #' For each patient, `d` is the standard deviation over
-#' the models in use of the percentile rank `r_m(i) = rank(logit_m(i)) / n` (0 to 1 scale).
+#' the kept models of the percentile rank `r_m(i) = rank(logit_m(i)) / n` (0 to 1 scale).
 #' Rank disagreement, the study mean of `d` over treated patients, is the primary summary; it is
 #' a study-level summary, not a per-patient flag.
 #'
@@ -24,9 +24,11 @@
 #' Standard deviations use the n - 1 denominator.
 #'
 #' @section Quality gate:
-#' With `use_gate = TRUE` only the models that passed the log-loss gate are used. If fewer than
-#' two passed, all models are used and `quality_gate_left_fewer_than_two_models` is `TRUE`
-#'. The flag reports the gate's outcome whatever `use_gate` is.
+#' "Kept models" in this help page are the models the function uses: the models given in
+#' `models` (as [propensity_sensitivity()] passes the models kept by its quality gate), or with
+#' `use_gate = TRUE` the models that passed the log-loss gate, or every model. If fewer than
+#' two passed, all models are used and `quality_gate_left_fewer_than_two_models` is `TRUE`.
+#' The flag reports the gate's outcome whatever `use_gate` is.
 #'
 #' @param model_set A `propensity_model_set` from [fit_propensity_models()].
 #' @param use_gate `TRUE` (default) to use the models that passed the log-loss gate; `FALSE` to
@@ -101,7 +103,8 @@ rank_disagreement <- function(model_set, use_gate = TRUE, models = NULL) {
     quality_gate_left_fewer_than_two_models = in_use$quality_gate_left_fewer_than_two_models,
     settings = list(use_gate = use_gate, gate_applied = in_use$gate_applied,
                     models_supplied = in_use$models_supplied,
-                    algorithms_with_seeds = with_seeds)
+                    algorithms_with_seeds = with_seeds,
+                    seeds_per_algorithm = c(seed_counts))
   ), class = "rank_disagreement")
 }
 
@@ -116,11 +119,16 @@ print.rank_disagreement <- function(x, ...) {
       "; over all patients: ", format_number(s$mean_d_all), "\n", sep = "")
   cat("Equal weight per algorithm, mean d_between over treated (exploratory): ",
       format_number(s$mean_d_between_treated), "\n", sep = "")
+  counts <- x$settings$seeds_per_algorithm
+  tree_counts <- counts[!names(counts) %in% single_fit_algorithms]
+  reference_applies <- !is.na(s$median_between_within_ratio_treated) &&
+    length(tree_counts) > 0 && all(tree_counts == 3)
   cat(wrap_text(paste0("Median d_between / d_within over treated (exploratory): ",
                        format_number(s$median_between_within_ratio_treated),
-                       ". With three seeds per algorithm, seed noise alone gives about 0.4; ",
-                       "larger values point to disagreement between algorithms.")),
-      sep = "\n")
+                       if (reference_applies) {
+                         paste0(". With three seeds per algorithm, seed noise alone gives about ",
+                                "0.4; larger values point to disagreement between algorithms.")
+                       })), sep = "\n")
   cat("Mean d_logit over treated: ", format_number(s$mean_d_logit_treated), "\n", sep = "")
   invisible(x)
 }

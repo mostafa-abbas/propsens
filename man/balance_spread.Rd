@@ -67,10 +67,10 @@ caliper the standardized mean differences compare the matched treated patients w
 matched untreated partners, while the energy distance (\code{estimand = "ATT"}) also measures the
 distance to the whole treated group, so it also grows when treated patients are dropped.
 
-The spread of each statistic over the models in use is its range (max - min), its standard
+The spread of each statistic over the kept models is its range (max - min), its standard
 deviation, and the worst (largest) value with the model that produced it. The table of
 models lists every model of the match set with an \code{in_use} column, so that the balance part
-of the quality gate can read every model; the spread uses the models in use only. The
+of the quality gate can read every model; the spread uses the kept models only. The
 oracle entry and the bootstrap block are never used.
 }
 \section{cobalt settings (verified against cobalt 5.0.0)}{
@@ -89,9 +89,11 @@ not depend on how the weights of the untreated patients are scaled.
 
 \section{Quality gate}{
 
-With \code{use_gate = TRUE} only the models that passed the log-loss gate are used. If fewer than
-two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}
-. The flag reports the gate's outcome whatever \code{use_gate} is.
+"Kept models" in this help page are the models the function uses: the models given in
+\code{models} (as \code{\link[=propensity_sensitivity]{propensity_sensitivity()}} passes the models kept by its quality gate), or with
+\code{use_gate = TRUE} the models that passed the log-loss gate, or every model. If fewer than
+two passed, all models are used and \code{quality_gate_left_fewer_than_two_models} is \code{TRUE}.
+The flag reports the gate's outcome whatever \code{use_gate} is.
 }
 
 \examples{

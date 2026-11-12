@@ -135,18 +135,18 @@ test_that("4. the reference row: log-loss NA, never in use, flagged when it fail
   # On lalonde the analyst's match fails the 0.10 balance gate: a real failing case.
   expect_gt(reference$smd_max_main, 0.10)
   expect_false(reference$passed_quality_gate)
-  expect_match(reference$gate_note, "not kept by the gate (its balance is above the limit)",
+  expect_match(reference$gate_note, "judged on balance only: above the balance limit",
                fixed = TRUE)
   expect_true(with_replacement$summary$reference_model_not_kept)
   expect_match(printed_text(with_replacement),
-               "Your own model (glm, linear.logit): not kept by the gate", fixed = TRUE)
+               "Your own model (glm, linear.logit): above the balance limit", fixed = TRUE)
   passing <- reference_model_row(
     list(label = "glm, linear.logit", rank = rep(0.5, nrow(lalonde)),
          weights = as.numeric(analyst$weights)),
     lalonde_covariates, lalonde$treat, balance_limit = 1, columns = names(models)
   )
   expect_true(passing$passed_quality_gate)
-  expect_match(passing$gate_note, "kept by the gate (its balance is within the limit)",
+  expect_match(passing$gate_note, "judged on balance only: within the balance limit",
                fixed = TRUE)
 
   reference_rank <- rank(as.numeric(analyst$distance)) / nrow(lalonde)

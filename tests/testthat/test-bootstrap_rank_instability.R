@@ -1,4 +1,4 @@
-# bootstrap_rank_instability(), as defined in the paper: the SD of a patient's percentile
+# bootstrap_rank_instability(), as defined in its help page: the SD of a patient's percentile
 # rank over the logistic bootstrap refits, averaged over treated patients.
 data("lalonde", package = "MatchIt")
 instability_formula <- treat ~ age + educ + race + married + nodegree + re74 + re75

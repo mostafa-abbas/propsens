@@ -32,7 +32,17 @@
 #' by_seed
 #' @export
 seed_sensitivity <- function(x, seeds = 1:3, ..., model_seeds = NULL, keep_results = FALSE) {
+  caller <- parent.frame()
   arguments <- list(...)
+  # The data of a matchit object is found in the caller's frame, as propensity_sensitivity()
+  # does, before any variable of this function can hide it (for example a data frame named `x`).
+  if (inherits(x, "matchit") && is.null(arguments$data)) {
+    data <- tryCatch(eval(x$call$data, caller), error = function(e) NULL)
+    if (!is.data.frame(data)) {
+      stop("Could not find the data of the matchit object; pass the data with `data =`.")
+    }
+    arguments$data <- data
+  }
   # `seed = ` would be partially matched to `seeds`; it is refused, as is `seed` in `...`.
   if ("seed" %in% c(names(arguments), names(sys.call()))) {
     stop("Give the values of `seed` with `seeds`; do not pass `seed`.")
@@ -45,7 +55,7 @@ seed_sensitivity <- function(x, seeds = 1:3, ..., model_seeds = NULL, keep_resul
   # The two warnings below are columns of the table; any other warning reaches the user.
   table_warning <- function(w) {
     text <- conditionMessage(w)
-    if (startsWith(text, "WARNING: fewer than two models passed") ||
+    if (startsWith(text, "Fewer than two models passed the quality gate") ||
           grepl("are random seeds of one algorithm", text, fixed = TRUE)) {
       invokeRestart("muffleWarning")
     }

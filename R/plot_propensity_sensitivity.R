@@ -9,11 +9,13 @@
 #'   description of the spread, not a set of flags for individual patients. Treated patients
 #'   unmatched in every kept model (caliper) are left out.
 #' - `type = "models"`: the four balance statistics by model, one panel per
-#'   statistic, each axis starting at 0. Kept models are filled, the others hollow; your own
-#'   model (from a `matchit` object) is drawn in its own colour; the dashed line in the
-#'   main-terms panel is the balance limit of the quality gate.
+#'   statistic, each axis starting at 0. Kept models are filled circles, the others hollow;
+#'   your own model (from a `matchit` object) is a diamond in its own colour, filled when its
+#'   balance is within the limit (it is judged on balance only and is never kept); the dashed
+#'   line in the main-terms panel is the balance limit of the quality gate.
 #' - `type = "recurrence"`: histograms of pair recurrence over treated patients, across the
-#'   kept models (floor 1 / number of models and ceiling 1 drawn; pair instability is 1 minus
+#'   kept models (all models after a fallback; floor 1 / number of models and ceiling 1 drawn;
+#'   pair instability is 1 minus
 #'   its mean, and it is high whenever many untreated patients have similar scores, even when
 #'   the models agree) and across bootstrap refits of the logistic model with the corrected
 #'   denominator (ceiling 1).
@@ -90,15 +92,15 @@ plot_patients <- function(x) {
     ggplot2::labs(x = "Rank disagreement across models",
                   y = "Scaled control spread",
                   caption = paste0("One point per treated patient; dashed lines: medians.\n",
-                                   "A description of how the disagreement is spread over\n",
-                                   "the treated patients, not a flag for individual patients.")) +
+                                   "Describes how the disagreement is spread;\n",
+                                   "not a flag for individual patients.")) +
     plot_theme()
 }
 
 plot_models <- function(x) {
   shape_key_colour <- list(colour = okabe_ito[["blue"]])
-  statistics <- c(smd_max_main = "Max |SMD| main",
-                  smd_max_extended = "Max |SMD| extended",
+  statistics <- c(smd_max_main = "Max |SMD|, main",
+                  smd_max_extended = "Max |SMD|, ext.",
                   energy_distance = "Energy distance",
                   ks_max = "Max KS")
   models <- x$models
@@ -106,13 +108,19 @@ plot_models <- function(x) {
     data.frame(model_id = models$model_id, statistic = statistics[[statistic]],
                value = models[[statistic]],
                kind = ifelse(models$is_reference, "your own model", "refitted model"),
-               gate = ifelse(models$passed_quality_gate %in% TRUE, "kept", "not kept"),
+               gate = ifelse(models$is_reference,
+                             ifelse(models$passed_quality_gate %in% TRUE,
+                                    "own: within limit", "own: above limit"),
+                             ifelse(models$passed_quality_gate %in% TRUE, "kept", "not kept")),
                stringsAsFactors = FALSE)
   }))
   long$statistic <- factor(long$statistic, levels = unname(statistics))
   long$model_id <- factor(long$model_id, levels = rev(models$model_id))
   long$kind <- factor(long$kind, levels = c("refitted model", "your own model"))
-  long$gate <- factor(long$gate, levels = c("kept", "not kept"))
+  gate_levels <- c("kept", "not kept", "own: within limit", "own: above limit")
+  long$gate <- factor(long$gate, levels = gate_levels)
+  # The legend always shows "kept" and "not kept", and your own model's entry when there is one.
+  gate_breaks <- union(c("kept", "not kept"), intersect(gate_levels[3:4], long$gate))
   threshold <- data.frame(statistic = factor(statistics[["smd_max_main"]],
                                              levels = unname(statistics)),
                           value = x$settings$balance_limit)
@@ -122,29 +130,32 @@ plot_models <- function(x) {
     # show.legend = TRUE draws a key for "kept" and "not kept" even when one is absent.
     ggplot2::geom_point(ggplot2::aes(colour = .data$kind, shape = .data$gate), size = 2,
                         na.rm = TRUE, show.legend = TRUE) +
-    ggplot2::scale_shape_manual(values = c(kept = 16, "not kept" = 1), drop = FALSE,
-                                name = "Quality gate") +
+    ggplot2::scale_shape_manual(values = c(kept = 16, "not kept" = 1,
+                                           "own: within limit" = 18, "own: above limit" = 5),
+                                breaks = gate_breaks, drop = FALSE, name = NULL) +
     ggplot2::scale_colour_manual(values = c("refitted model" = okabe_ito[["blue"]],
                                             "your own model" = okabe_ito[["vermillion"]]),
                                  drop = TRUE, name = NULL) +
     # The legend keys are drawn in a fixed colour, so the "kept" key is visible even when no
     # model is kept.
-    ggplot2::guides(shape = ggplot2::guide_legend(override.aes = shape_key_colour)) +
+    ggplot2::guides(shape = ggplot2::guide_legend(ncol = 2, override.aes = shape_key_colour)) +
     ggplot2::scale_x_continuous(n.breaks = 3, labels = short_number_labels,
                                 expand = ggplot2::expansion(mult = c(0, 0.08))) +
     ggplot2::expand_limits(x = 0) +
     ggplot2::facet_wrap(~ statistic, scales = "free_x", ncol = 2) +
-    ggplot2::labs(x = "Value after matching (lower = better; each axis starts at 0)", y = NULL,
-                  caption = paste0("Extended: with squares and interactions.\n",
-                                   "Filled = kept by the quality gate; hollow = not kept.\n",
-                                   "Dashed line = balance limit of the quality gate.")) +
+    ggplot2::labs(x = "Value after matching\n(lower = better; axes start at 0)", y = NULL,
+                  caption = paste0("Ext.: with squares and interactions.\n",
+                                   "Filled = kept by the quality gate.\n",
+                                   "Own model (diamond): balance only.\n",
+                                   "Dashed line: balance limit of the gate.")) +
     plot_theme() +
     ggplot2::theme(panel.spacing.x = ggplot2::unit(1.2, "lines"))
 }
 
 plot_recurrence <- function(x) {
   treated <- x$patients[x$patients$treated == 1, , drop = FALSE]
-  panels <- c(models = "Across the kept models",
+  fallback <- isTRUE(x$quality_gate_left_fewer_than_two_models)
+  panels <- c(models = if (fallback) "Across all models (fallback)" else "Across the kept models",
               bootstrap = "Across bootstrap refits of the logistic model")
   long <- rbind(
     data.frame(panel = panels[["models"]], recurrence = treated$pair_recurrence_models),
@@ -170,12 +181,11 @@ plot_recurrence <- function(x) {
     ggplot2::guides(linetype = ggplot2::guide_legend(ncol = 1)) +
     ggplot2::facet_wrap(~ panel, ncol = 1, scales = "free_y", drop = FALSE) +
     ggplot2::coord_cartesian(xlim = c(0, 1.05)) +
-    ggplot2::labs(x = "Pair recurrence (share of runs choosing the most common partner)",
+    ggplot2::labs(x = "Pair recurrence\n(share choosing the most common partner)",
                   y = "Treated patients",
-                  caption = paste0("Top: pair instability = 1 - mean. Low recurrence is expected ",
-                                   "when many untreated\npatients have similar scores, even when ",
-                                   "the models agree (crowding).\n",
-                                   "Bottom: corrected denominator (resamples holding both ",
-                                   "patients); ceiling 1.")) +
+                  caption = paste0("Top: pair instability = 1 - mean.\n",
+                                   "Low values are expected when many untreated\n",
+                                   "patients have similar scores (crowding).\n",
+                                   "Bottom: corrected denominator; ceiling 1.")) +
     plot_theme()
 }
