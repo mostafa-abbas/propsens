@@ -10,33 +10,27 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 5, fig.height = 4.5,
                       out.width = "80%")
+show_file <- function(path) cat(readLines(path), sep = "\n")
 ```
 
 ## Why this check
 
 A matched study estimates the propensity score with one model, usually logistic regression.
-Another equally reasonable model, such as Bayesian additive regression trees or a generalized
-random forest, would rank the
-patients differently, give some treated patients different untreated partners, and could change
-the matched design. `propsens` measures how much the design depends on that choice, **without
-looking at outcomes**, so it can be run at the design stage, next to the usual balance table.
+Another model that fits about as well, such as Bayesian additive regression trees or a
+generalized random forest, can rank the patients differently, give some treated patients
+different untreated partners, and so change the matched design. `propsens` describes how much the
+design depends on that choice, **without looking at outcomes**, so it can be run at the design
+stage, next to the usual balance table. Every summary describes the study as a whole.
 
-**Status of the evidence.** The diagnostics are evaluated in a manuscript in preparation (Abbas,
-*Do equally good propensity models agree on whom to match?*). Until it is available, report the
-output as a description of how much the matched design depends on the choice of propensity
-model, not as a validated check.
+**Status of the evidence.** These diagnostics have been studied in the author's simulations and
+benchmark analyses; a methods paper is in preparation. No peer-reviewed evaluation exists yet,
+and no thresholds for a "large" value exist yet. Report the output as a description of how much
+the matched design depends on the choice of propensity model, not as a validated check.
 
 For a short overview, see [propsens at a glance](at-a-glance.html)
 (`vignette("at-a-glance", package = "propsens")`). For the method explained one idea at a time
 with a real clinical example, see [How propsens works, step by step](how-it-works.html)
 (`vignette("how-it-works", package = "propsens")`).
-
-It answers two questions:
-
-- **Study level:** would an equally reasonable propensity model give a matched design with
-  different balance?
-- **Patient level:** which treated patients get a different *kind* of untreated partner under a
-  different model?
 
 ## One call on your own `matchit` object
 
@@ -53,18 +47,52 @@ matched <- MatchIt::matchit(
 
 `propensity_sensitivity()` reads the formula and the matching options from the object, refits
 the propensity model with logistic regression, Bayesian additive regression trees (BART) and a
-generalized random forest (three seeds for each tree algorithm, cross-fitted scores), re-matches
-with the same options, and computes the diagnostics, with 20 bootstrap refits of the logistic
-model. This is the model set evaluated in a manuscript in preparation, and it is the one to use in an
+generalized random forest (GRF) (three seeds for each tree algorithm, cross-fitted scores),
+re-matches with the same options, applies the quality gate and computes the diagnostics, with 20
+bootstrap refits of the logistic model. These are the defaults, and the model set to use in an
 analysis:
 
 ```{r defaults, eval = FALSE}
 sensitivity <- propensity_sensitivity(matched)
+sensitivity
 ```
 
-It takes about a minute on these data. So that this vignette builds quickly, the run below uses
-an earlier, faster model set (logistic regression, random forests and gradient boosting), fewer
-seeds and fewer refits.
+It takes about a minute on these data, so the output below was computed once with the script
+`data-raw/lalonde_default_output.R` and is shown as text:
+
+```{r defaults-output, echo = FALSE, comment = ""}
+show_file("lalonde-default-print.txt")
+```
+
+**What this output says.** On these data no refitted model reaches the balance limit: every one
+of them has a largest standardized mean difference above 0.25 after matching, so fewer than two
+models pass the gate. The function raises an R warning and the output opens with it: there is no
+set of similarly good models to compare, and every number describes all seven models. Your own
+model (the `glm` of the `matchit` object) is shown as kept, but it is judged on balance only and
+is an in-sample score, while the refitted logistic regression is cross-fitted and judged on both
+fit and balance; your own model is never one of the models compared. When the gate keeps none of
+the refitted models, as here, the next step is to revisit the matching design (covariates,
+caliper, replacement), not to read the summaries.
+
+The result also depends on `seed`. `seed_sensitivity()` reruns the call with several seeds:
+
+```{r seeds, eval = FALSE}
+seed_sensitivity(matched, seeds = 1:3)
+```
+
+```{r seeds-output, echo = FALSE, comment = ""}
+show_file("lalonde-default-seeds.txt")
+```
+
+With `seed = 1` every model is used (fallback); with seeds 2 and 3 the gate keeps only BART fits,
+so rank disagreement then measures only BART's seed noise (and the function warns). None of the
+three seeds gives a kept set from two or more algorithms. Report every row.
+
+## The printed lines, on a faster run
+
+So that this vignette builds quickly, the runs below use the faster model set (logistic
+regression, random forests and gradient boosting), fewer seeds and fewer refits. The output has
+the same structure.
 
 ```{r sensitivity}
 sensitivity <- propensity_sensitivity(
@@ -74,42 +102,51 @@ sensitivity <- propensity_sensitivity(
 sensitivity
 ```
 
-How to read the printed lines:
+How to read the printed lines, in their order:
 
-- **Models in use.** A model enters the "equally reasonable" set only if its cross-fitted
-  log-loss is within 5 % of the best model and its largest standardized mean difference on main
-  terms after matching is at most 0.10 above the best model's and at most 0.25 (the relative
-  balance rule; `balance_rule = "absolute"` uses a fixed 0.10 instead). If fewer than two models
-  pass, all models are used and the output starts with a warning: the diagnostic is then outside
-  the setting where it was evaluated. The line on the quality gate states the rule.
-- **Mean rank disagreement.** For each patient, the standard deviation over models of the
-  patient's percentile rank of the propensity score; averaged over treated patients. 0 means
-  every model orders the patients the same way. Read it for the study as a whole, not per patient
-  (evaluated in a manuscript in preparation).
-- **Bootstrap rank instability.** The standard deviation of a patient's percentile rank over
-  bootstrap refits of the logistic model, averaged over treated patients. Report it next to rank
-  disagreement; the two are evaluated together in a manuscript in preparation.
-- **Between/within ratio.** Disagreement between algorithms divided by disagreement between
-  seeds of the same algorithm. Near 1 means the algorithms disagree with each other no more
-  than one tree algorithm disagrees with itself: seed noise, not model dependence.
-- **Scaled control spread.** For each treated patient, how different the untreated partners
-  chosen by the different models are, in units of a typical distance between a treated patient
-  and its partner. 1 means the candidate partners differ from each other as much as a typical
-  match differs from its treated patient.
-- **Balance range and treated kept.** The spread of the maximum standardized mean difference
-  across the models in use, and the share of treated patients kept (below 100 % only with a
-  caliper).
-- **Reference model.** Your own model from the `matchit` object, kept as a reference. Its
-  log-loss is not computed (it is an in-sample score) and it is judged on balance only.
+- **WARNING (when present).** Fewer than two models passed the gate: every model is used, and
+  the values describe all models, not a kept set.
+- **1. Quality gate.** How many models were kept, from how many algorithms, and the rule: a model
+  is kept only if its cross-fitted log-loss is within 5 % of the best model's and its largest
+  standardized mean difference on main terms after matching is at most 0.10 above the best
+  model's and at most 0.25 (`balance_rule = "absolute"` uses a fixed 0.10 instead). When the
+  kept models are seeds of one algorithm, a block says so (and the function warns): the
+  disagreement is then seed noise. The excluded models are listed with the reason, then the
+  share of treated patients kept by each kept model (below 100 % only with a caliper).
+  `r if (!"logistic_regression_1" %in% sensitivity$summary$models_used) "In this run the refitted logistic regression, the analyst's usual kind of model, is not kept: another algorithm fitted or balanced clearly better here, and the summaries describe the kept models only." else "In this run the refitted logistic regression is one of the kept models."`
+- **2. Rank disagreement (primary).** For each patient, the standard deviation over the kept
+  models of the patient's percentile rank (0 to 1) of the propensity score; averaged over treated
+  patients. 0 means every kept model orders the patients the same way. Read it for the study as
+  a whole. It depends on how many seeds each kept algorithm has; the next line, **equal weight
+  per algorithm** (exploratory), counts each algorithm once.
+- **Between/within-algorithm ratio (exploratory).** Disagreement between algorithms divided by
+  disagreement between seeds of the same algorithm. With three seeds per algorithm, seed noise
+  alone gives a ratio of about 0.4; larger values point to disagreement between algorithms
+  beyond seed noise. `NA` when no kept algorithm has two seeds.
+- **Pair instability (exploratory).** How often the kept models choose different untreated
+  partners, with its maximum for the number of kept models. It is high whenever many untreated
+  patients have similar scores, even when the models agree.
+- **Bootstrap rank instability (descriptive).** The standard deviation of a patient's
+  percentile rank over bootstrap refits of the logistic model, averaged over treated patients:
+  sampling noise of one model. Report it next to rank disagreement.
+- **3. Balance spread (descriptive).** The range of the largest standardized mean difference on
+  main terms across the kept models.
+- **Control spread (descriptive).** For each treated patient, how different the untreated
+  partners chosen by the different models are, in units of a typical distance between a treated
+  patient and its partner.
+- **Your own model.** The model of the `matchit` object, judged on balance only.
+- **Matching.** The matching settings and the target: with a caliper, the estimand is the effect
+  in the retained treated patients.
 
-`summary()` gives every study-level number with and without the quality gate, and the table of
-models:
+`summary()` gives every study-level number for the kept models and for every model, each with
+its label, the table of models and the reasons each model was or was not kept:
 
 ```{r summary}
 summary(sensitivity)
 ```
 
-The per-patient table is available with `as.data.frame()`:
+The per-patient table is available with `as.data.frame()`. Its columns describe how the
+disagreement is spread over the patients; they are not flags for individual patients.
 
 ```{r patients}
 head(as.data.frame(sensitivity))
@@ -117,29 +154,28 @@ head(as.data.frame(sensitivity))
 
 ## The three plots
 
-**Patients.** One point per treated patient: rank disagreement across models (x) against the
-scaled control spread (y). The upper right holds the patients about whom the models disagree
-*and* who receive different kinds of untreated partners: these are the patients that make the
-design fragile. Colour shows whether the patient's logistic score lies outside the range of the
-untreated patients' scores.
+**Patients.** One point per treated patient: rank disagreement across the kept models (x)
+against the scaled control spread (y). It describes how the disagreement is spread over the
+treated patients; individual points should not be read as flags for individual patients. Colour
+shows whether the patient's logistic score lies outside the range of the untreated patients'
+scores.
 
 ```{r plot-patients}
 plot(sensitivity, type = "patients")
 ```
 
-**Models.** The four balance statistics after matching, one panel each, one row per model.
-Hollow points fail the quality gate; your own model is drawn in its own colour. A wide spread
-across models means the balance you report depends on the model you happened to choose.
+**Models.** The four balance statistics after matching, one panel each, one row per model, each
+axis starting at 0. Filled points are kept by the quality gate, hollow points are not; your own
+model is drawn in its own colour. The dashed line is the balance limit of the gate.
 
 ```{r plot-models, fig.height = 5.5}
 plot(sensitivity, type = "models")
 ```
 
-**Recurrence.** The pair recurrence: the share of models (or bootstrap refits) that choose a
-treated patient's most common untreated partner. One minus its mean over treated patients across models is
-pair instability, printed under rank disagreement: the second summary of the same gated model
-set, exploratory, while rank disagreement stays the primary summary. When untreated patients are
-dense the recurrence is often near its floor.
+**Recurrence.** The pair recurrence: the share of kept models (or bootstrap refits) that choose a
+treated patient's most common untreated partner. One minus its mean over treated patients across
+the kept models is pair instability (exploratory). Low recurrence is expected when untreated
+patients are dense, even when the models agree.
 
 ```{r plot-recurrence}
 plot(sensitivity, type = "recurrence")
@@ -157,11 +193,13 @@ propensity_sensitivity(treat ~ age + educ + race + married + nodegree + re74 + r
 
 ## What to do with the result
 
-1. Show the models plot next to your balance table.
-2. Choose the design by balance, never by the outcome.
-3. If the design is fragile, report the range of estimates across the models in a supplement.
-4. Look at the treated patients in the upper right of the patients plot: do they sit in a
-   region of the covariates with few untreated patients?
+1. If a warning appears, revisit the matching design first.
+2. Rerun with two or three values of `seed` (`seed_sensitivity()`) and report every row.
+3. Show the models plot next to your balance table, and choose the design by balance, never by
+   the outcome.
+4. Decide before looking at outcomes whether you will report the effect estimate under each
+   kept model, and then report all of them.
 
-The check does not detect unmeasured confounding and is not a fix: it tells you how much your
-matched design depends on one modelling choice.
+The check does not detect unmeasured confounding and is not a fix: it describes how much your
+matched design depends on one modelling choice. A small value is not evidence that the estimate
+is unbiased.

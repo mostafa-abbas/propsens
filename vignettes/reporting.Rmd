@@ -13,8 +13,9 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 5, fig.height
 ```
 
 The check belongs in the design section of a matched study, next to the balance table, and it
-is done before any outcome is looked at. This vignette shows how to read the output and what to
-write.
+is done before any outcome is looked at. This vignette shows how to read the plots and how to
+build the Methods and Results text from the result, so that every number and setting comes from
+the run.
 
 ```{r run}
 library(propsens)
@@ -23,90 +24,144 @@ matched <- MatchIt::matchit(
   treat ~ age + educ + race + married + nodegree + re74 + re75,
   data = lalonde, distance = "glm", link = "linear.logit", replace = TRUE
 )
-# An earlier, faster model set and small settings so the vignette builds quickly; use the
-# defaults (logistic regression, BART and the GRF probability forest) in a real analysis.
+# The faster model set and small settings so the vignette builds quickly; use the defaults
+# (logistic regression, BART and the GRF probability forest) in a real analysis.
 sensitivity <- propensity_sensitivity(
   matched, algorithms = c("logistic_regression", "random_forest", "gradient_boosting"),
   seeds = 1:2, n_trees = 100, bootstrap_samples = 5
 )
-numbers <- sensitivity$summary$table
-value <- function(name) numbers$with_gate[numbers$quantity == name]
 ```
 
 ## Reading the three plots
 
-**Patients plot** (`plot(x, type = "patients")`). Each point is a treated patient. Right = the
-models disagree about where this patient sits among all patients. Up = the models give this
-patient different kinds of untreated partners. The upper right is what makes a design fragile.
-A cloud that hugs the bottom left means the design is robust to the choice of model. Colour
-shows whether the patient's logistic score is outside the range of the untreated patients'
-scores: fragile patients outside the support point to an overlap problem; fragile patients
-inside the support point to a region with few comparable untreated patients.
+**Patients plot** (`plot(x, type = "patients")`). Each point is a treated patient: right = the
+kept models place this patient differently among all patients; up = the kept models give this
+patient different kinds of untreated partners. The plot describes how the disagreement is spread
+over the treated patients; it is a description, and individual points should not be read as
+flags for individual patients. Points near the bottom left mean that these models rank the
+patient similarly and choose similar partners. Colour shows whether the patient's logistic score
+is outside the range of the untreated patients' scores.
 
 **Models plot** (`plot(x, type = "models")`). Each row is a model, each panel a balance
-statistic. If the points of a panel line up, the balance you report does not depend on the
-model. If they spread out, it does: say so, and show this plot. Hollow points fail the quality
-gate; your own model has its own colour and is judged on balance only.
+statistic, each axis starting at 0. If the points of a panel line up, the balance you report does
+not depend on the model; if they spread out, it does: say so, and show this plot. Filled points
+are kept by the quality gate, hollow points are not; your own model has its own colour and is
+judged on balance only. The extended-terms panel is usually driven by sparse squares and
+interactions; report the main-terms panel.
 
 **Recurrence plot** (`plot(x, type = "recurrence")`). The per-patient pair recurrence behind
-pair instability (1 minus its mean over treated patients across models), the second, exploratory
-summary printed under rank disagreement. Values near the floor (1 / number of models) are common
-when untreated patients are dense; report pair instability next to rank disagreement, not alone.
+pair instability (1 minus its mean over treated patients across the kept models; exploratory).
+Values near the floor (1 / number of kept models) are expected when untreated patients are dense,
+even when the models agree; report pair instability next to rank disagreement, never alone.
 
 ## What to write in Methods
 
+The sentence below is built from the result object: the model set, the gate and how many models
+it kept (by algorithm), the matching settings, the share of treated patients kept and the seed.
+
 ```{r methods-sentence, echo = FALSE, results = "asis"}
-cat("> We assessed sensitivity of the matched design to the propensity model with the",
-    "`propsens` package: logistic regression, Bayesian additive regression trees and a",
-    "generalized random forest (fixed settings, 5-fold cross-fitted scores; seven models in",
-    "all) were each used",
-    "for 1:1 nearest-neighbour matching with replacement; we report the mean rank",
-    "disagreement with the bootstrap rank instability of the logistic model, the balance",
-    "spread across models and, as descriptions, pair instability and the control spread,",
-    "all computed without outcomes.\n")
+settings <- sensitivity$settings
+models <- sensitivity$models[!sensitivity$models$is_reference, ]
+kept <- models[models$in_use, ]
+fallback <- sensitivity$quality_gate_left_fewer_than_two_models
+algorithm_names <- c(logistic_regression = "logistic regression",
+                     bart = "Bayesian additive regression trees",
+                     grf_probability = "a generalized random forest",
+                     random_forest = "a random forest", gradient_boosting = "gradient boosting")
+fitted_algorithms <- unique(models$algorithm)
+fitted_text <- paste(algorithm_names[fitted_algorithms], collapse = ", ")
+count_by_algorithm <- table(factor(kept$algorithm, levels = unique(kept$algorithm)))
+kept_text <- paste0(as.integer(count_by_algorithm), " ",
+                    algorithm_names[names(count_by_algorithm)], collapse = ", ")
+smd_words <- "their largest post-match standardized mean difference on main terms"
+balance_text <- switch(
+  settings$balance_rule,
+  relative = sprintf("%s was within %.2f of the best model's and at most %.2f", smd_words,
+                     settings$balance_margin, settings$balance_cap),
+  relative_only = sprintf("%s was within %.2f of the best model's", smd_words,
+                          settings$balance_margin),
+  absolute = sprintf("%s was at most %.2f", smd_words, settings$balance_threshold)
+)
+caliper_text <- if (is.null(settings$caliper_sd)) "" else
+  sprintf(" with a caliper of %.2g standard deviations of the logit", settings$caliper_sd)
+kept_share <- range(kept$treated_kept)
+share_text <- if (all(kept_share >= 1)) "all treated patients were matched" else
+  sprintf("%.0f to %.0f %% of treated patients were matched", 100 * kept_share[1],
+          100 * kept_share[2])
+gate_result <- if (fallback) {
+  sprintf(paste("fewer than two of the %d models met these criteria, so all models were",
+                "used and the summaries describe all of them"), nrow(models))
+} else {
+  sprintf("%d of %d models were kept (%s)", nrow(kept), nrow(models), kept_text)
+}
+cat("> We described the sensitivity of the matched design to the propensity model with the R",
+    sprintf("package propsens (version %s).", as.character(utils::packageVersion("propsens"))),
+    paste0(toupper(substring(fitted_text, 1, 1)), substring(fitted_text, 2)),
+    sprintf("(%d seeds for each tree method; %d models; %d-fold cross-fitted scores; seed %d)",
+            length(settings$seeds), nrow(models), settings$folds, settings$seed),
+    sprintf("were each used for 1:1 nearest-neighbour matching %s replacement%s.",
+            if (settings$replace) "with" else "without", caliper_text),
+    sprintf(paste("Models were kept if their cross-fitted log-loss was within %.0f %% of the",
+                  "best model's and %s; %s, and %s."),
+            100 * settings$quality_tolerance, balance_text, gate_result, share_text),
+    "For the kept models we report the mean rank disagreement over treated patients, the",
+    "bootstrap rank instability of the logistic model, and the range of the largest",
+    "standardized mean difference on main terms. No outcome data were used. These summaries",
+    "are descriptive; they have not been validated as predictors of bias.\n")
 ```
+
+If you reran the check with several values of `seed` (`seed_sensitivity()`), add: "The check
+was repeated with seeds 1, 2 and 3; all results are reported."
 
 ## What to write in Results
 
 The numbers below come from the run above, not typed by hand:
 
 ```{r results-sentence, echo = FALSE, results = "asis"}
-patients <- sensitivity$patients[sensitivity$patients$treated == 1, ]
-share_far <- mean(patients$control_spread_scaled > 1, na.rm = TRUE)
-models <- sensitivity$models[sensitivity$models$in_use, ]
-template <- paste(
-  "> Mean rank disagreement was %.3f (study level); the bootstrap rank instability of the",
-  "logistic model was %.3f. Exploratory summaries: pair instability %.3f and a",
-  "between/within ratio of %.1f. As a description only, %.0f %% of treated patients",
-  "received untreated partners that differed by more than one typical match distance across",
-  "models.",
-  "The maximum standardized mean difference (including squares and interactions) ranged",
-  "from %.2f to %.2f across models (Figure S1).\n"
+numbers <- sensitivity$summary$table
+value <- function(name) numbers$with_gate[numbers$quantity == name]
+n_kept <- length(sensitivity$summary$models_used)
+ratio <- value("median_between_within_ratio_treated")
+ratio_text <- if (is.na(ratio)) "not available (no kept algorithm had two seeds)" else
+  sprintf("%.1f", ratio)
+results_template <- paste(
+  "> Mean rank disagreement over treated patients was %.3f; the bootstrap rank instability of",
+  "the logistic model was %.3f. As exploratory summaries, pair instability was %.2f (of a",
+  "possible %.2f with %d models) and the median between/within-algorithm ratio was %s. The",
+  "largest standardized mean difference on main terms ranged from %.2f to %.2f across the %s."
 )
-cat(sprintf(template, value("mean_rank_disagreement_treated"),
+cat(sprintf(results_template, value("mean_rank_disagreement_treated"),
             value("bootstrap_rank_instability_treated"),
-            value("pair_instability_models_mean_treated"),
-            value("median_between_within_ratio_treated"), 100 * share_far,
-            min(models$smd_max_extended), max(models$smd_max_extended)))
+            value("pair_instability_models_mean_treated"), 1 - 1 / n_kept, n_kept, ratio_text,
+            min(kept$smd_max_main), max(kept$smd_max_main),
+            if (fallback) "models" else "kept models"), "\n")
+if (sensitivity$kept_algorithms_count == 1 && n_kept >= 2) {
+  cat("> The kept models were seeds of a single algorithm, so these summaries describe seed",
+      "noise within that algorithm, not disagreement between algorithms.\n")
+}
 ```
 
 If the quality gate left fewer than two models, add: "Fewer than two propensity models met the
-pre-specified quality criteria (log-loss within 5 % of the best model's; maximum standardized
-mean difference on main terms at most 0.10 above the best model's and at most 0.25), so all
-models were used." With `balance_rule = "absolute"`, describe that rule instead; `print()`
-states the rule in effect.
+quality criteria (log-loss within 5 % of the best model's; largest standardized mean difference
+on main terms at most 0.10 above the best model's and at most 0.25), so all models were used."
+With `balance_rule = "absolute"`, describe that rule instead; `print()` states the rule in effect.
+Call the criteria pre-specified only if you fixed them before running the check.
 
-## When the result says "fragile"
+## If you judge the disagreement to be large
+
+No thresholds exist yet, so this is a judgement you state and justify.
 
 1. Show the models plot (balance by model).
 2. Choose the design by balance, never by the outcome.
-3. Report the range of the estimates across the models in a supplement.
-4. Look at the treated patients with high control spread: do they share a region of the
-   covariates with few untreated patients? Say so in the Discussion.
+3. Decide before looking at outcomes whether you will report the effect estimate under each kept
+   model, and then report all of them.
+4. Look at where the disagreement is concentrated in the patients plot: does it sit in a region
+   of the covariates with few untreated patients? Describe this for the study as a whole.
 
 ## What the check does not do
 
-It does not detect unmeasured confounding, it does not fix a fragile design, and it does not
-tell you which model is right. When logistic regression is correct, the tree models can still
-disagree with it: the check flags that the *choice* matters, not which choice is correct. It
-covers 1:1 nearest-neighbour matching for the ATT only.
+It does not detect unmeasured confounding, it does not fix a design, and it does not tell you
+which model is right. When logistic regression is correct, the tree models can still disagree
+with it: the check describes that the *choice* matters, not which choice is correct. It cannot
+tell whether a disagreement matters for the effect estimate, and a small value is not evidence
+that the estimate is unbiased. It covers 1:1 nearest-neighbour matching for the ATT only.

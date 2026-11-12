@@ -9,9 +9,11 @@ First public release.
   each tree algorithm: seven models), with cross-fitted scores; every model is matched with the
   same settings.
 * A quality gate keeps only the models that predict treatment about as well as the best model
-  and whose matched groups are about as well balanced, and warns when fewer than two pass.
+  and whose matched groups are about as well balanced. An R warning is raised when fewer than
+  two models pass, or when the kept models are seeds of a single algorithm.
 * For the kept models it reports rank disagreement (how differently they order the treated
   patients) and pair instability (how often they choose a different untreated partner), with
   the bootstrap rank instability of the logistic model and the spread of balance across models.
-* `plot()` shows the results, and the articles explain the method step by step with the public
-  right heart catheterization study.
+* `seed_sensitivity()` repeats the check with several values of `seed`; `plot()` shows the
+  results, and the articles explain the method step by step with the public right heart
+  catheterization study.

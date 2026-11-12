@@ -284,9 +284,10 @@ save_figure(figure_3, "rhc-ranks.png", 4.2)
 # Figure 4: odds ratio of death within 30 days in each kept model's matched pairs.
 kept <- models[models$model_id %in% used, ]
 kept$label <- factor(model_label(kept$model_id), levels = rev(model_label(kept$model_id)))
-kept$balance <- ifelse(round(kept$smd_max_main, 2) <= 0.10,
-                       "Largest |SMD| after matching at most 0.10 (two decimals)",
-                       "Largest |SMD| after matching slightly above 0.10")
+balance_labels <- c("Largest |SMD| after matching at most 0.10 (two decimals)",
+                    "Largest |SMD| above 0.10 (kept by the relative rule of the gate)")
+kept$balance <- factor(ifelse(round(kept$smd_max_main, 2) <= 0.10, balance_labels[1],
+                              balance_labels[2]), levels = balance_labels)
 figure_4 <- ggplot(kept, aes(odds_ratio, label, colour = balance, shape = balance)) +
   geom_vline(xintercept = 1, colour = okabe[["grey"]]) +
   geom_errorbar(aes(xmin = conf_low, xmax = conf_high), width = 0.2, orientation = "y") +
@@ -295,12 +296,14 @@ figure_4 <- ggplot(kept, aes(odds_ratio, label, colour = balance, shape = balanc
             show.legend = FALSE) +
   scale_colour_manual(values = unname(okabe[c("blue", "orange")]), name = NULL) +
   scale_shape_manual(values = c(16, 17), name = NULL) +
+  # One legend entry per line, so that the legend fits the figure width.
+  guides(colour = guide_legend(ncol = 1), shape = guide_legend(ncol = 1)) +
   scale_x_log10(breaks = c(1, 1.2, 1.4, 1.6), limits = c(0.95, 1.65)) +
   labs(x = "Odds ratio of death within 30 days, catheterized vs matched untreated (95 % CI)",
        y = NULL, title = "Effect estimates across the four kept models",
        subtitle = "Grey line: odds ratio 1, no difference") +
   theme_example()
-save_figure(figure_4, "rhc-effects.png", 3.6)
+save_figure(figure_4, "rhc-effects.png", 4.0)
 
 print(file.info(file.path(figure_dir, c("rhc-partners.png", "rhc-gate.png",
                                         "rhc-ranks.png", "rhc-effects.png")))["size"])
