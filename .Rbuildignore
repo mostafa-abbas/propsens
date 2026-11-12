@@ -7,7 +7,6 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^cran-comments\.md$
-^README\.md$
 ^\.gitignore$
 ^data-raw$
 ^CITATION\.cff$
