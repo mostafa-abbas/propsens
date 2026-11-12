@@ -1,0 +1,16 @@
+"quantity","value"
+"patients",5735
+"treated",2184
+"models",7
+"models_kept",4
+"rank_disagreement",0.0473107148490615
+"rank_disagreement_between",0.0560618422134413
+"rank_disagreement_within",0.0240060185459803
+"pair_instability",0.639985727878211
+"bootstrap_rank_instability",0.0505949701138024
+"smd_max_main_range",0.0187487035247066
+"treated_kept_min",0.783424908424908
+"treated_kept_max",0.820054945054945
+"treated_matched_by_all_kept",1249
+"share_with_more_than_one_partner",1
+"example_distinct_partners",4

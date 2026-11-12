@@ -1,0 +1,10 @@
+citHeader("To cite propsens in publications use (a manuscript is in preparation):")
+
+bibentry(
+  bibtype = "Manual",
+  title   = "propsens: Propensity Model Sensitivity Diagnostics for Matched Studies",
+  author  = person("Mostafa M.", "Abbas"),
+  year    = "2026",
+  note    = "R package version 0.1.0",
+  url     = "https://github.com/mostafa-abbas/propsens"
+)

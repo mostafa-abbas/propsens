@@ -1,0 +1,188 @@
+---
+title: "How the diagnostics are defined"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{How the diagnostics are defined}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This vignette gives the exact definitions behind `propensity_sensitivity()`. Every diagnostic
+uses the covariates and the treatment only; none uses the outcome.
+
+## Notation
+
+| Symbol | Meaning |
+|---|---|
+| n | number of patients |
+| T_i | treatment, 1 = treated, 0 = untreated |
+| m | one propensity model: one algorithm with one setting or seed |
+| e_m(i) | cross-fitted probability of treatment from model m, clipped to [0.001, 0.999] |
+| l_m(i) | logit of e_m(i) |
+| r_m(i) | percentile rank of l_m(i) among all n patients (rank divided by n) |
+| c_m(i) | the untreated partner matched to treated patient i under model m |
+
+## The model set and the quality gate
+
+The default set of `propensity_sensitivity()` and of `fit_propensity_models()`, the set evaluated in a manuscript in preparation, has logistic
+regression (main effects), Bayesian additive regression trees (`dbarts::bart2`, probit link,
+default priors, 75 trees, four chains of 500 burn-in and 500 kept draws, posterior mean
+probability) and a generalized random forest (`grf::probability_forest`, 2,000 honest trees), the
+two tree algorithms with three seeds each: seven models.
+
+A faster set is available with `algorithms = c("logistic_regression", "random_forest",
+"gradient_boosting")`: a random forest (500 trees, `mtry = floor(sqrt(p))`, node size 10) and
+gradient boosting (depth 3, shrinkage 0.05, bagging fraction 0.8; the number of trees chosen once
+by 5-fold cross-validation and then frozen). It is not part of that evaluation.
+
+Every score is **cross-fitted**: the patients are split into five folds shared by all models, and
+each patient's score comes from a model fitted on the other four folds. In-sample tree scores are
+overfit; cross-fitting keeps every model honest. (`cross_fit = FALSE` gives the in-sample scores
+that `MatchIt` would use.)
+
+A model counts as "equally reasonable" only if
+
+```
+cross-fitted log-loss  <=  1.05 x (best model's log-loss)
+max |SMD| on main terms after matching  <=  (best model's max |SMD| on main terms) + 0.10
+max |SMD| on main terms after matching  <=  0.25
+```
+
+This is the default relative balance rule (`balance_rule = "relative"`): a model is excluded
+only when its balance is clearly worse than the best model's. With a few hundred matched pairs
+the largest chance SMD over several covariates often exceeds 0.10, so a fixed 0.10 limit would
+exclude good models. The fixed limit is available as `balance_rule = "absolute"`
+(`balance_threshold = 0.10`). If fewer than two models pass, all models are used and the result
+says so. The role of the balance part of the gate is evaluated in a manuscript in preparation.
+
+## Matching
+
+Every model is used for 1:1 nearest-neighbour matching for the average treatment effect in the
+treated (ATT), on the logit, by calling `MatchIt::matchit()` with the logit as a numeric
+distance. The order is MatchIt's default for the ATT (treated patients with the largest score
+first). Both matching with and without replacement are supported (the formula interface
+defaults to without replacement, the common applied choice;
+it is in general not consistent for the ATT, whereas matching with replacement is). The
+diagnostic with and without replacement is evaluated in a manuscript in preparation.
+
+## Rank disagreement (primary)
+
+```
+d(i) = standard deviation over models m of r_m(i)
+```
+
+Percentile ranks are used rather than logits because algorithms are calibrated differently: a
+random forest and a logistic regression can order the patients the same way while their logits
+differ a lot. Ranks do not change under any increasing transformation of a score, so only the
+ordering of the patients counts.
+
+```{r invariance}
+logit <- c(-2, -1, 0.5, 3)
+rank(logit) / 4
+rank(exp(logit)) / 4    # an increasing transformation: same ranks
+```
+
+To separate model dependence from seed noise:
+
+```
+d_between(i) = SD over algorithms a of  (mean over seeds k of r_{a,k}(i))
+d_within(i)  = sqrt( mean over algorithms with at least two seeds of
+                     (variance over seeds k of r_{a,k}(i)) )
+```
+
+Logistic regression has a single model and no seed variance, so it is left out of `d_within`.
+The study-level numbers are the mean of d(i) over treated patients and the median over treated
+patients of `d_between / d_within`. **A ratio near 1 means the algorithms disagree with each
+other no more than one algorithm disagrees with itself across seeds: noise, not model
+dependence.** Standard deviations use the n − 1 denominator.
+
+The logit-scale version `d_logit(i) = SD over m of l_m(i)` is reported as a secondary measure.
+
+## Control spread (primary at the patient level)
+
+Different partner *identities* are harmless if the untreated partners have the same covariates.
+Control spread measures whether the models pick different *kinds* of untreated partners:
+
+```
+C(i)        = the distinct untreated partners matched to treated patient i across the models
+s(i)        = mean pairwise Mahalanobis distance between the covariate vectors in C(i),
+              with the covariance matrix of all n patients
+s_scaled(i) = s(i) / (mean over treated patients of the Mahalanobis distance between a
+                      treated patient and its logistic-regression match)
+```
+
+`s(i) = 0` when every model picks the same untreated partner. `s_scaled = 1` reads "the
+candidate partners differ from each other as much as a typical match differs from its treated patient". Factor
+covariates are expanded to dummies; constant and linearly dependent columns are dropped.
+
+## Balance spread (study level)
+
+After matching on each model, four balance statistics are computed with `cobalt`: the maximum
+absolute standardized mean difference on main terms, the same with squares and all two-way
+interactions, the energy distance, and the maximum Kolmogorov–Smirnov statistic. Standardized
+differences use the standard deviation of the treated group, and binary covariates are
+standardized too, so all covariates are on one scale. The spread is the range and the standard
+deviation of each statistic across the models in use, with the worst model named.
+
+## Pair recurrence and pair instability
+
+```
+pair recurrence, across models:     share of the models in use whose untreated partner equals
+                                    i's most common untreated partner
+pair instability (study level):     1 - mean over treated of the pair recurrence across models
+pair recurrence, across bootstrap:  share of bootstrap refits of the logistic model that choose
+                                    i's most common untreated partner, counting only refits
+                                    that contain both i and that partner
+```
+
+**Pair instability** is the second summary of the same gated model set. Rank disagreement, the
+primary summary, measures how differently the models order the treated patients; pair
+instability counts how often they choose different untreated partners for them. The two answer
+the same question from two sides, and a change of rank need not change the partner: where
+untreated patients are sparse a patient's rank can move a lot while its nearest untreated patient
+stays the same, and where untreated patients are dense a small move changes it. Rank disagreement is the primary summary and pair
+instability is exploratory; both are evaluated in a manuscript in preparation. Report rank
+disagreement first and pair instability next to it. The summary table keeps `pair_recurrence_models_mean_treated` for
+backward compatibility; `pair_instability_models_mean_treated` is 1 minus it.
+
+Pair recurrence across models lies between 1 / (number of models) and 1, so pair instability
+lies between 0 and 1 - 1 / (number of models). When untreated patients are dense the recurrence
+is often
+near its floor; read pair instability against comparable studies, not against a cut-off.
+Without the denominator correction the bootstrap version could never exceed about 0.63, because
+any patient is missing from about 37 % of bootstrap samples.
+
+## What the simulation compares against: the truth
+
+In simulated data the expected outcome without treatment, mu0(x), is known. For each model:
+
+```
+B_m  = mean over treated i of  mu0(X_i) - mu0(X_{c_m(i)})     (imbalance-driven bias)
+D    = standard deviation of B_m across the models in use     (study-level model dependence)
+t(i) = standard deviation across models of mu0(X_{c_m(i)})    (patient-level model dependence)
+```
+
+**Why B contains no treatment effect.** Under the ATT with every treated patient matched, the
+treated group is the same under every model; only the untreated partners change, and the
+outcomes of untreated patients contain no treatment effect. So a heterogeneous treatment effect does not move the differences
+between models. The simulation checks this identity numerically on every dataset of Scenario 2
+(differences below 1e-10). The share of treated patients kept is reported separately, because a
+caliper that drops treated patients changes the target population.
+
+## Traps this design avoids
+
+| Trap | What the package does |
+|---|---|
+| In-sample tree scores are overfit and shrink overlap | all scores are cross-fitted |
+| Random-forest out-of-bag probabilities can be exactly 0 or 1 | probabilities are clipped to [0.001, 0.999] before the logit |
+| Boosting re-tuned on every fit is not a fixed model | the tree count is chosen once and frozen |
+| Logit-scale disagreement is large even when every model orders patients alike | percentile ranks are primary |
+| Seed noise looks like model dependence | the between/within decomposition |
+| Different partner identities need not mean different kinds of untreated partners | control spread uses covariate distances |
+| Pair recurrence is often near its floor when untreated patients are dense | pair instability is reported as a second, exploratory summary next to rank disagreement, never alone |
+| The bootstrap is not valid for the variance of matching estimators | the bootstrap is used for design stability only, never for a confidence interval |
+| No outcome-free check can tell harmful from harmless misspecification | stated as a limitation; the simulation shows both cases |

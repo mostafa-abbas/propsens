@@ -1,0 +1,167 @@
+---
+title: "Getting started with propsens"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with propsens}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 5, fig.height = 4.5,
+                      out.width = "80%")
+```
+
+## Why this check
+
+A matched study estimates the propensity score with one model, usually logistic regression.
+Another equally reasonable model, such as Bayesian additive regression trees or a generalized
+random forest, would rank the
+patients differently, give some treated patients different untreated partners, and could change
+the matched design. `propsens` measures how much the design depends on that choice, **without
+looking at outcomes**, so it can be run at the design stage, next to the usual balance table.
+
+**Status of the evidence.** The diagnostics are evaluated in a manuscript in preparation (Abbas,
+*Do equally good propensity models agree on whom to match?*). Until it is available, report the
+output as a description of how much the matched design depends on the choice of propensity
+model, not as a validated check.
+
+For a short overview, see [propsens at a glance](at-a-glance.html)
+(`vignette("at-a-glance", package = "propsens")`). For the method explained one idea at a time
+with a real clinical example, see [How propsens works, step by step](how-it-works.html)
+(`vignette("how-it-works", package = "propsens")`).
+
+It answers two questions:
+
+- **Study level:** would an equally reasonable propensity model give a matched design with
+  different balance?
+- **Patient level:** which treated patients get a different *kind* of untreated partner under a
+  different model?
+
+## One call on your own `matchit` object
+
+```{r match}
+library(propsens)
+data("lalonde", package = "MatchIt")
+
+matched <- MatchIt::matchit(
+  treat ~ age + educ + race + married + nodegree + re74 + re75,
+  data = lalonde, method = "nearest", distance = "glm", link = "linear.logit",
+  replace = TRUE
+)
+```
+
+`propensity_sensitivity()` reads the formula and the matching options from the object, refits
+the propensity model with logistic regression, Bayesian additive regression trees (BART) and a
+generalized random forest (three seeds for each tree algorithm, cross-fitted scores), re-matches
+with the same options, and computes the diagnostics, with 20 bootstrap refits of the logistic
+model. This is the model set evaluated in a manuscript in preparation, and it is the one to use in an
+analysis:
+
+```{r defaults, eval = FALSE}
+sensitivity <- propensity_sensitivity(matched)
+```
+
+It takes about a minute on these data. So that this vignette builds quickly, the run below uses
+an earlier, faster model set (logistic regression, random forests and gradient boosting), fewer
+seeds and fewer refits.
+
+```{r sensitivity}
+sensitivity <- propensity_sensitivity(
+  matched, algorithms = c("logistic_regression", "random_forest", "gradient_boosting"),
+  seeds = 1:2, n_trees = 100, bootstrap_samples = 5
+)
+sensitivity
+```
+
+How to read the printed lines:
+
+- **Models in use.** A model enters the "equally reasonable" set only if its cross-fitted
+  log-loss is within 5 % of the best model and its largest standardized mean difference on main
+  terms after matching is at most 0.10 above the best model's and at most 0.25 (the relative
+  balance rule; `balance_rule = "absolute"` uses a fixed 0.10 instead). If fewer than two models
+  pass, all models are used and the output starts with a warning: the diagnostic is then outside
+  the setting where it was evaluated. The line on the quality gate states the rule.
+- **Mean rank disagreement.** For each patient, the standard deviation over models of the
+  patient's percentile rank of the propensity score; averaged over treated patients. 0 means
+  every model orders the patients the same way. Read it for the study as a whole, not per patient
+  (evaluated in a manuscript in preparation).
+- **Bootstrap rank instability.** The standard deviation of a patient's percentile rank over
+  bootstrap refits of the logistic model, averaged over treated patients. Report it next to rank
+  disagreement; the two are evaluated together in a manuscript in preparation.
+- **Between/within ratio.** Disagreement between algorithms divided by disagreement between
+  seeds of the same algorithm. Near 1 means the algorithms disagree with each other no more
+  than one tree algorithm disagrees with itself: seed noise, not model dependence.
+- **Scaled control spread.** For each treated patient, how different the untreated partners
+  chosen by the different models are, in units of a typical distance between a treated patient
+  and its partner. 1 means the candidate partners differ from each other as much as a typical
+  match differs from its treated patient.
+- **Balance range and treated kept.** The spread of the maximum standardized mean difference
+  across the models in use, and the share of treated patients kept (below 100 % only with a
+  caliper).
+- **Reference model.** Your own model from the `matchit` object, kept as a reference. Its
+  log-loss is not computed (it is an in-sample score) and it is judged on balance only.
+
+`summary()` gives every study-level number with and without the quality gate, and the table of
+models:
+
+```{r summary}
+summary(sensitivity)
+```
+
+The per-patient table is available with `as.data.frame()`:
+
+```{r patients}
+head(as.data.frame(sensitivity))
+```
+
+## The three plots
+
+**Patients.** One point per treated patient: rank disagreement across models (x) against the
+scaled control spread (y). The upper right holds the patients about whom the models disagree
+*and* who receive different kinds of untreated partners: these are the patients that make the
+design fragile. Colour shows whether the patient's logistic score lies outside the range of the
+untreated patients' scores.
+
+```{r plot-patients}
+plot(sensitivity, type = "patients")
+```
+
+**Models.** The four balance statistics after matching, one panel each, one row per model.
+Hollow points fail the quality gate; your own model is drawn in its own colour. A wide spread
+across models means the balance you report depends on the model you happened to choose.
+
+```{r plot-models, fig.height = 5.5}
+plot(sensitivity, type = "models")
+```
+
+**Recurrence.** The pair recurrence: the share of models (or bootstrap refits) that choose a
+treated patient's most common untreated partner. One minus its mean over treated patients across models is
+pair instability, printed under rank disagreement: the second summary of the same gated model
+set, exploratory, while rank disagreement stays the primary summary. When untreated patients are
+dense the recurrence is often near its floor.
+
+```{r plot-recurrence}
+plot(sensitivity, type = "recurrence")
+```
+
+## Without a `matchit` object
+
+The same diagnostic runs on a formula and a data frame; the matching options are then
+arguments (without replacement, order "largest", no caliper by default):
+
+```{r formula, eval = FALSE}
+propensity_sensitivity(treat ~ age + educ + race + married + nodegree + re74 + re75,
+                       data = lalonde)
+```
+
+## What to do with the result
+
+1. Show the models plot next to your balance table.
+2. Choose the design by balance, never by the outcome.
+3. If the design is fragile, report the range of estimates across the models in a supplement.
+4. Look at the treated patients in the upper right of the patients plot: do they sit in a
+   region of the covariates with few untreated patients?
+
+The check does not detect unmeasured confounding and is not a fix: it tells you how much your
+matched design depends on one modelling choice.

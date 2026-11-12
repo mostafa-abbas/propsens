@@ -1,0 +1,13 @@
+^LICENSE\.md$
+^\.lintr$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
+^.*\.Rproj$
+^\.Rproj\.user$
+^cran-comments\.md$
+^README\.md$
+^\.gitignore$
+^data-raw$
+^CITATION\.cff$

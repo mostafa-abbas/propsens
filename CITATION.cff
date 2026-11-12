@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "propsens: Propensity Model Sensitivity Diagnostics for Matched Studies"
+authors:
+  - family-names: Abbas
+    given-names: "Mostafa M."
+repository-code: "https://github.com/mostafa-abbas/propsens"
+license: MIT
+version: 0.1.0

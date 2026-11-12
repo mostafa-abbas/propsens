@@ -1,0 +1,32 @@
+url: https://mostafa-abbas.github.io/propsens/
+
+template:
+  bootstrap: 5
+
+navbar:
+  structure:
+    left: [intro, reference, articles, changelog]
+    right: [search, github]
+  components:
+    articles:
+      text: Articles
+      menu:
+        - text: "Getting started with propsens"
+          href: articles/getting-started.html
+        - text: "propsens at a glance"
+          href: articles/at-a-glance.html
+        - text: "How propsens works, step by step"
+          href: articles/how-it-works.html
+        - text: "How the diagnostics are defined"
+          href: articles/definitions.html
+        - text: "Reading the plots and reporting in a paper"
+          href: articles/reporting.html
+
+articles:
+  - title: All Articles
+    contents:
+      - getting-started
+      - at-a-glance
+      - how-it-works
+      - definitions
+      - reporting

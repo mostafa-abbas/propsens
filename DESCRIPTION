@@ -1,0 +1,42 @@
+Package: propsens
+Type: Package
+Title: Propensity Model Sensitivity Diagnostics for Matched Studies
+Version: 0.1.0
+Authors@R: person(given = "Mostafa M.", family = "Abbas",
+                  email = "mostafa.mn.abbas@gmail.com", role = c("aut", "cre", "cph"))
+Description: Outcome-free diagnostics that measure how much a matched study
+    depends on the choice of propensity model. Logistic regression, Bayesian
+    additive regression trees and a generalized random forest are each used
+    for 1:1 nearest-neighbour matching with cross-fitted scores; the package
+    reports study-level rank disagreement, bootstrap rank instability of the
+    logistic model and balance spread across models, applies a quality gate,
+    and reads an existing 'MatchIt' object directly.
+License: MIT + file LICENSE
+URL: https://github.com/mostafa-abbas/propsens, https://mostafa-abbas.github.io/propsens
+BugReports: https://github.com/mostafa-abbas/propsens/issues
+Encoding: UTF-8
+Language: en-GB
+Depends:
+    R (>= 4.2)
+Imports:
+    MatchIt (>= 4.8.1),
+    cobalt (>= 5.0.0),
+    randomForest,
+    gbm,
+    dbarts,
+    grf,
+    withr,
+    ggplot2 (>= 3.5.0),
+    stats,
+    splines,
+    parallel
+Suggests:
+    ATbounds,
+    glmnet,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.1
