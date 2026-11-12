@@ -1,0 +1,244 @@
+# propsens
+
+> **Would another, equally good propensity model have matched the same
+> patients?**
+
+[![R-CMD-check](https://github.com/mostafa-abbas/propsens/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/mostafa-abbas/propsens/actions/workflows/R-CMD-check.yaml)
+[![License:
+MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A matched study estimates each patient’s propensity score with one
+model, usually logistic regression, and pairs every treated patient with
+an untreated patient who has a similar score. Another model that fits
+the data just as well, such as Bayesian additive regression trees (BART)
+or a generalized random forest (GRF), can order the patients differently
+and so pick different partners. propsens measures how much the matched
+design depends on that choice, **without looking at outcomes**, so it
+can be run at the design stage, next to the usual balance table.
+
+![One treated (catheterized) patient on the left, linked to four equally
+good propensity models (logistic regression and BART with seeds 1, 2 and
+3). Each model places the patient at a slightly different percentile
+rank and pairs the patient with a different untreated patient, A to
+D.](articles/rhc-partners.png)
+
+One treated (catheterized) patient on the left, linked to four equally
+good propensity models (logistic regression and BART with seeds 1, 2 and
+3). Each model places the patient at a slightly different percentile
+rank and pairs the patient with a different untreated patient, A to D.
+
+## propsens in one minute
+
+![Four panels joined by arrows under the heading propsens in one minute.
+You give it: patient characteristics and treatment, no outcomes. It
+does: three kinds of model, a barrier for the quality gate, and matched
+pairs. You get: kept models, rank disagreement, pair instability, and a
+warning if fewer than two pass. You use it to: report next to balance,
+check your design, compare effects across
+models.](articles/img/one-minute.png)
+
+Four panels joined by arrows under the heading propsens in one minute.
+You give it: patient characteristics and treatment, no outcomes. It
+does: three kinds of model, a barrier for the quality gate, and matched
+pairs. You get: kept models, rank disagreement, pair instability, and a
+warning if fewer than two pass. You use it to: report next to balance,
+check your design, compare effects across models.
+
+|  |  |
+|----|----|
+| **You give it** | Your study data (patient characteristics and treatment, no outcomes) and your matching settings, or your existing `MatchIt` object. |
+| **It does** | Fits seven propensity models, keeps those as good as the best (the quality gate), and repeats your matching with each kept model. |
+| **You get** | The list of kept models; rank disagreement (how much patients’ positions move between kept models); pair instability (how often kept models choose different partners); the balance of each model’s match; a clear warning if fewer than two models pass. |
+| **You use it to** | \(1\) Report it next to your balance table, at the design stage, before looking at outcomes. (2) If the warning appears, revisit the matching design first. (3) If disagreement is noticeable, report the effect estimate under each kept model as a sensitivity analysis, as in the [heart catheterization example](https://mostafa-abbas.github.io/propsens/articles/how-it-works.html). |
+
+``` r
+
+# Your study data and your matching settings:
+propensity_sensitivity(treated ~ age + sex + diabetes, data = study_data,
+                       replace = FALSE, caliper = 0.2)
+
+# Or your existing MatchIt object (its matching settings are read from the object):
+propensity_sensitivity(matched)
+```
+
+## Installation
+
+``` r
+
+# install.packages("remotes")
+remotes::install_github("mostafa-abbas/propsens")
+```
+
+To also build the vignettes:
+
+``` r
+
+remotes::install_github("mostafa-abbas/propsens", build_vignettes = TRUE)
+```
+
+The heart catheterization example in the articles was pre-computed from
+the public right heart catheterization data of the `ATbounds` package
+(`install.packages("ATbounds")`); the script is
+`data-raw/heart_catheterization_example.R`.
+
+## What it does
+
+propsens takes the analyst’s matched design (a `MatchIt` object, or a
+formula and a data frame) and:
+
+- **refits the propensity model** with logistic regression, BART and GRF
+  (three seeds for each tree algorithm, cross-fitted scores), seven
+  models in all;
+- **re-matches** with each model, using the analyst’s own matching
+  options;
+- **applies a quality gate**: a model is kept only if it predicts
+  treatment about as well as the best model and its matched sample is
+  about as well balanced;
+- **reports, for the kept models**, rank disagreement (how differently
+  the models order the treated patients), pair instability (how often
+  they choose different partners), the bootstrap rank instability of the
+  logistic model, and the spread of balance across models.
+
+## Example result (right heart catheterization)
+
+On the public right heart catheterization data (Connors et al., *JAMA*
+1996; 5,735 patients, 2,184 catheterized):
+
+- **4 of 7 models were kept by the quality gate**: logistic regression
+  and BART with seeds 1, 2 and 3. The three GRF fits were excluded.
+- **Rank disagreement was 0.047.**
+- **Odds ratios of death within 30 days**, matching with each kept model
+  (95 % confidence interval): logistic regression 1.37 (1.19–1.57); BART
+  seed 1 1.27 (1.11–1.47); BART seed 2 1.32 (1.15–1.53); BART seed 3
+  1.38 (1.20–1.60). propsens itself never uses the outcome; the odds
+  ratios only show what the disagreement means for the estimate.
+
+The [step-by-step
+article](https://mostafa-abbas.github.io/propsens/articles/how-it-works.html)
+walks through this example.
+
+## Example
+
+``` r
+
+library(propsens)
+data("lalonde", package = "MatchIt")
+matched <- MatchIt::matchit(treat ~ age + educ + race + married + nodegree + re74 + re75,
+                            data = lalonde, distance = "glm", replace = FALSE)
+sensitivity <- propensity_sensitivity(matched)  # refits the seven models and re-matches
+sensitivity                                     # gate, rank disagreement, pair instability
+summary(sensitivity)                            # every number, every model's fit and balance
+plot(sensitivity, type = "models")              # balance after matching, one row per model
+```
+
+On these data no model passes the balance part of the gate, so the
+output opens with a warning that the diagnostic is outside the setting
+where it was evaluated. The run takes about a minute.
+
+## What it is, and what it is not
+
+**What it is:** a design-stage description of how much a 1:1
+nearest-neighbour matched design depends on the choice of propensity
+model, at the level of the whole study.
+
+**What it is not:** a test of whether the effect estimate is right, a
+per-patient flag, or a check for unmeasured confounding. Every model
+uses the same covariates, so a confounder missing from that list is
+missing from all of them.
+
+The diagnostics are evaluated in a manuscript in preparation (Abbas, Do
+equally good propensity models agree on whom to match?). Until it is
+available, report the output as a description of how much the matched
+design depends on the choice of propensity model, not as a validated
+check.
+
+## Documentation
+
+The articles are also on the website,
+<https://mostafa-abbas.github.io/propsens>.
+
+- **Getting started:**
+  [`vignette("getting-started", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/getting-started.md).
+- **propsens at a glance:**
+  [`vignette("at-a-glance", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/at-a-glance.md)
+  ([source](https://mostafa-abbas.github.io/propsens/vignettes/at-a-glance.Rmd)):
+  the question, what you run, what you get and how to read it, with the
+  right heart catheterization example.
+- **How propsens works, step by step:**
+  [`vignette("how-it-works", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/how-it-works.md)
+  ([source](https://mostafa-abbas.github.io/propsens/vignettes/how-it-works.Rmd)):
+  propensity scores and matching, the three kinds of model, the quality
+  gate, rank disagreement and pair instability, and effect estimates
+  across the kept models, each with the same example.
+- **How the diagnostics are defined:**
+  [`vignette("definitions", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/definitions.md).
+- **Reading the plots and reporting:**
+  [`vignette("reporting", package = "propsens")`](https://mostafa-abbas.github.io/propsens/articles/reporting.md).
+- **Citing:** `citation("propsens")`.
+
+## Getting help
+
+- **Bug reports and feature requests:** [open an
+  issue](https://github.com/mostafa-abbas/propsens/issues).
+
+## Licence
+
+MIT. See
+[LICENSE.md](https://mostafa-abbas.github.io/propsens/LICENSE.md).
+
+## AI assistance
+
+Some of the code and documentation in this package were written or
+reviewed with the help of Claude Code (Claude Opus 5.5, Anthropic).
+
+# Package index
+
+## All functions
+
+- [`balance_spread()`](https://mostafa-abbas.github.io/propsens/reference/balance_spread.md)
+  [`print(`*`<balance_spread>`*`)`](https://mostafa-abbas.github.io/propsens/reference/balance_spread.md)
+  : Study-level balance spread across propensity models
+- [`bootstrap_rank_instability()`](https://mostafa-abbas.github.io/propsens/reference/bootstrap_rank_instability.md)
+  [`print(`*`<bootstrap_rank_instability>`*`)`](https://mostafa-abbas.github.io/propsens/reference/bootstrap_rank_instability.md)
+  : Bootstrap rank instability of the logistic propensity model
+- [`control_spread()`](https://mostafa-abbas.github.io/propsens/reference/control_spread.md)
+  [`print(`*`<control_spread>`*`)`](https://mostafa-abbas.github.io/propsens/reference/control_spread.md)
+  : Per-patient control spread across propensity models
+- [`fit_propensity_models()`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
+  [`print(`*`<propensity_model_set>`*`)`](https://mostafa-abbas.github.io/propsens/reference/fit_propensity_models.md)
+  : Fit the propensity model set with cross-fitting
+- [`match_each_model()`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md)
+  [`print(`*`<match_set>`*`)`](https://mostafa-abbas.github.io/propsens/reference/match_each_model.md)
+  : Match the treated patients once per propensity model
+- [`pair_recurrence()`](https://mostafa-abbas.github.io/propsens/reference/pair_recurrence.md)
+  [`print(`*`<pair_recurrence>`*`)`](https://mostafa-abbas.github.io/propsens/reference/pair_recurrence.md)
+  : Pair recurrence across models and across bootstrap resamples
+- [`plot(`*`<propensity_sensitivity>`*`)`](https://mostafa-abbas.github.io/propsens/reference/plot.propensity_sensitivity.md)
+  : Plots of a propensity model sensitivity result
+- [`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  [`print(`*`<propensity_sensitivity>`*`)`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  [`summary(`*`<propensity_sensitivity>`*`)`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  [`print(`*`<summary.propensity_sensitivity>`*`)`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  [`as.data.frame(`*`<propensity_sensitivity>`*`)`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
+  : Propensity model sensitivity of a matched design
+- [`rank_disagreement()`](https://mostafa-abbas.github.io/propsens/reference/rank_disagreement.md)
+  [`print(`*`<rank_disagreement>`*`)`](https://mostafa-abbas.github.io/propsens/reference/rank_disagreement.md)
+  : Per-patient rank disagreement across propensity models
+- [`simulate_example_data()`](https://mostafa-abbas.github.io/propsens/reference/simulate_example_data.md)
+  : Simulate an example dataset for the propensity model sensitivity
+  diagnostics
+
+# Articles
+
+### All Articles
+
+- [Getting started with
+  propsens](https://mostafa-abbas.github.io/propsens/articles/getting-started.md):
+- [propsens at a
+  glance](https://mostafa-abbas.github.io/propsens/articles/at-a-glance.md):
+- [How propsens works, step by
+  step](https://mostafa-abbas.github.io/propsens/articles/how-it-works.md):
+- [How the diagnostics are
+  defined](https://mostafa-abbas.github.io/propsens/articles/definitions.md):
+- [Reading the plots and reporting in a
+  paper](https://mostafa-abbas.github.io/propsens/articles/reporting.md):
