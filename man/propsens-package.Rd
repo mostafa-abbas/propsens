@@ -20,7 +20,7 @@ The \code{importFrom} lines below declare packages of \code{Imports} that are ot
 Useful links:
 \itemize{
   \item \url{https://github.com/mostafa-abbas/propsens}
-  \item \url{https://mostafa-abbas.github.io/propsens}
+  \item \url{https://mostafa-abbas.github.io/propsens/}
   \item Report bugs at \url{https://github.com/mostafa-abbas/propsens/issues}
 }
 

@@ -75,7 +75,7 @@ On Linux the packages 'dbarts' (BART) and 'grf' are compiled from source, which 
 minutes and needs a C++ compiler. The faster model set (`algorithms = c("logistic_regression",
 "random_forest", "gradient_boosting")`) also needs 'randomForest' and 'gbm'. To build the
 vignettes as well, add `build_vignettes = TRUE`; they are also on the
-[website](https://mostafa-abbas.github.io/propsens).
+[website](https://mostafa-abbas.github.io/propsens/).
 
 **Run time.** With the default seven models, `propensity_sensitivity()` takes about a minute for
 614 patients and 7 covariates, and about 16 minutes for 5,735 patients and 50 covariates on one
@@ -211,7 +211,7 @@ validated check.
 
 ## Documentation
 
-The articles are on the website, <https://mostafa-abbas.github.io/propsens>:
+The articles are on the website, <https://mostafa-abbas.github.io/propsens/>:
 
 - [Getting started](https://mostafa-abbas.github.io/propsens/articles/getting-started.html):
   install, run, read the output.

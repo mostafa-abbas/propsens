@@ -6,5 +6,5 @@ bibentry(
   author  = person("Mostafa M.", "Abbas"),
   year    = format(as.Date(meta$Date), "%Y"),
   note    = paste("R package version", meta$Version),
-  url     = "https://mostafa-abbas.github.io/propsens"
+  url     = "https://mostafa-abbas.github.io/propsens/"
 )

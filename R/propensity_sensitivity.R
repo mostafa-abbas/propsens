@@ -122,8 +122,12 @@
 #'   instability and the bootstrap pair recurrence: 0 for none, otherwise at least 2
 #'   (default 20).
 #' @param covariates Data frame of covariates for the control spread and the balance
-#'   statistics. Its rows must be the same patients in the same order as `data`; when both
-#'   have row names other than the default and they differ, the function stops. `NULL`
+#'   statistics. Its rows must be the same patients in the same order as `data`. The row
+#'   names are checked when `covariates` has row names other than the default: if `data` has
+#'   them too, they must be identical; if `data` has the default row names (1 to n), those of
+#'   `covariates` must be "1" to "n" in order (a reordered copy of `data` is an error), and other
+#'   row names are an error. When `covariates` has the default row names (for example a data
+#'   frame built column by column) the order cannot be checked and is your responsibility. `NULL`
 #'   (default) uses the source columns of the formula's right-hand side, from `data`, resolved
 #'   with R's formula rules: `.` means every other column and exclusions such as `- death`
 #'   are respected; `I(age^2)` gives `age`, `age:diabetes` gives `age` and `diabetes`.
@@ -504,16 +508,45 @@ select_covariates <- function(covariates, formula, data) {
     if (nrow(covariates) != nrow(data)) {
       stop("`covariates` has ", nrow(covariates), " rows but `data` has ", nrow(data), ".")
     }
-    # Non-default row names on both sides must agree: same patients, same order.
-    has_row_names <- function(frame) .row_names_info(frame) > 0L
-    names_differ <- !identical(rownames(covariates), rownames(data))
-    if (has_row_names(covariates) && has_row_names(data) && names_differ) {
-      stop("The row names of `covariates` differ from those of `data`; `covariates` must hold ",
-           "the same patients in the same order as `data`.")
-    }
+    check_covariate_row_names(covariates, data)
     return(covariates)
   }
   formula_covariate_columns(formula, data)
+}
+
+# `covariates` must hold the same patients in the same order as `data`. The row names are the
+# only evidence of that:
+# - both non-default: they must be identical;
+# - `covariates` non-default, `data` default (1..n): row names that are the integers 1..n must be
+#   exactly "1", ..., "n" in order (otherwise `covariates` was reordered, for example a shuffled
+#   copy of `data`); any other row names cannot be matched to `data` and are an error;
+# - `covariates` default: nothing to compare (a frame built column by column, or from a matrix,
+#   has default row names even when its rows are in the right order), so the order is not checked.
+check_covariate_row_names <- function(covariates, data) {
+  has_row_names <- function(frame) .row_names_info(frame) > 0L
+  if (!has_row_names(covariates)) return(invisible(NULL))
+  covariate_names <- rownames(covariates)
+  if (has_row_names(data)) {
+    if (!identical(covariate_names, rownames(data))) {
+      stop("The row names of `covariates` differ from those of `data`; `covariates` must hold ",
+           "the same patients in the same order as `data`.", call. = FALSE)
+    }
+    return(invisible(NULL))
+  }
+  n <- nrow(data)
+  in_order <- as.character(seq_len(n))
+  if (identical(covariate_names, in_order)) return(invisible(NULL))
+  integer_names <- all(grepl("^[0-9]+$", covariate_names)) &&
+    setequal(suppressWarnings(as.integer(covariate_names)), seq_len(n))
+  if (integer_names) {
+    stop("`covariates` looks reordered relative to `data` (its row names are 1 to ", n,
+         " in a different order); rows must be the same patients in the same order.",
+         call. = FALSE)
+  }
+  stop("`covariates` has row names but `data` has default row names (1 to ", n, "), so the ",
+       "rows cannot be checked to be the same patients in the same order. Give both the same ",
+       "row names, or reset them with `rownames(covariates) <- NULL` once the rows are in the ",
+       "order of `data`.", call. = FALSE)
 }
 
 # The source columns of the right-hand side, resolved with R's own formula rules, so that

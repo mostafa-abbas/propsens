@@ -75,3 +75,46 @@ test_that("custom covariates with differing row names stop with a clear error", 
                                       covariates = shuffled),
                "same patients in the same order")
 })
+
+test_that("covariates with row names are checked against data with default row names", {
+  study <- make_study()
+  rownames(study) <- NULL
+  columns <- c("age", "diabetes", "sex")
+  run <- function(covariates) {
+    # One model, so the gate falls back to all models; those warnings are expected here.
+    suppressWarnings(propensity_sensitivity(treat ~ age + diabetes + sex, data = study,
+                                            algorithms = "logistic_regression",
+                                            covariates = covariates))
+  }
+
+  # A shuffled copy of `data`: row names "3", "1", ... -> error.
+  shuffled <- withr::with_seed(3, study[sample(nrow(study)), columns])
+  expect_error(select_covariates(shuffled, treat ~ age, study), "looks reordered relative to")
+  expect_error(run(shuffled), "rows must be the same patients in the same order")
+
+  # Other row names -> error asking for the same row names or a reset.
+  named <- study[, columns]
+  rownames(named) <- paste0("patient_", seq_len(nrow(named)))
+  expect_error(select_covariates(named, treat ~ age, study), "Give both the same row names")
+
+  # Row names that are integers but not 1..n (a subset of a larger frame) -> the same error.
+  offset <- study[, columns]
+  rownames(offset) <- as.character(seq_len(nrow(offset)) + 100L)
+  expect_error(select_covariates(offset, treat ~ age, study), "Give both the same row names")
+
+  # Explicit row names "1", ..., "n" in order -> runs.
+  explicit <- study[, columns]
+  rownames(explicit) <- as.character(seq_len(nrow(explicit)))
+  expect_identical(select_covariates(explicit, treat ~ age, study), explicit)
+
+  # The same columns in the same order, both with default row names -> runs.
+  same_order <- study[, columns]
+  expect_identical(select_covariates(same_order, treat ~ age, study), same_order)
+  with_columns <- run(same_order)
+  expect_equal(with_columns$summary$table, run(NULL)$summary$table)
+
+  # Default row names on `covariates` and non-default on `data`: not checked (documented).
+  named_study <- study
+  rownames(named_study) <- paste0("patient_", seq_len(nrow(study)))
+  expect_identical(select_covariates(same_order, treat ~ age, named_study), same_order)
+})

@@ -81,8 +81,12 @@ instability and the bootstrap pair recurrence: 0 for none, otherwise at least 2
 (default 20).}
 
 \item{covariates}{Data frame of covariates for the control spread and the balance
-statistics. Its rows must be the same patients in the same order as \code{data}; when both
-have row names other than the default and they differ, the function stops. \code{NULL}
+statistics. Its rows must be the same patients in the same order as \code{data}. The row
+names are checked when \code{covariates} has row names other than the default: if \code{data} has
+them too, they must be identical; if \code{data} has the default row names (1 to n), those of
+\code{covariates} must be "1" to "n" in order (a reordered copy of \code{data} is an error), and other
+row names are an error. When \code{covariates} has the default row names (for example a data
+frame built column by column) the order cannot be checked and is your responsibility. \code{NULL}
 (default) uses the source columns of the formula's right-hand side, from \code{data}, resolved
 with R's formula rules: \code{.} means every other column and exclusions such as \code{- death}
 are respected; \code{I(age^2)} gives \code{age}, \code{age:diabetes} gives \code{age} and \code{diabetes}.

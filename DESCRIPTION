@@ -17,7 +17,7 @@ Description: Outcome-free diagnostics of how much a matched design depends
     have been studied in the author's simulations; no peer-reviewed evaluation
     exists yet.
 License: MIT + file LICENSE
-URL: https://github.com/mostafa-abbas/propsens, https://mostafa-abbas.github.io/propsens
+URL: https://github.com/mostafa-abbas/propsens, https://mostafa-abbas.github.io/propsens/
 BugReports: https://github.com/mostafa-abbas/propsens/issues
 Encoding: UTF-8
 Language: en-GB
