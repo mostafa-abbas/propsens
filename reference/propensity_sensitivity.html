@@ -155,8 +155,12 @@ instability and the bootstrap pair recurrence: 0 for none, otherwise at least 2
 
 <dt id="arg-covariates">covariates<a class="anchor" aria-label="anchor" href="#arg-covariates"></a></dt>
 <dd><p>Data frame of covariates for the control spread and the balance
-statistics. Its rows must be the same patients in the same order as <code>data</code>; when both
-have row names other than the default and they differ, the function stops. <code>NULL</code>
+statistics. Its rows must be the same patients in the same order as <code>data</code>. The row
+names are checked when <code>covariates</code> has row names other than the default: if <code>data</code> has
+them too, they must be identical; if <code>data</code> has the default row names (1 to n), those of
+<code>covariates</code> must be "1" to "n" in order (a reordered copy of <code>data</code> is an error), and other
+row names are an error. When <code>covariates</code> has the default row names (for example a data
+frame built column by column) the order cannot be checked and is your responsibility. <code>NULL</code>
 (default) uses the source columns of the formula's right-hand side, from <code>data</code>, resolved
 with R's formula rules: <code>.</code> means every other column and exclusions such as <code>- death</code>
 are respected; <code>I(age^2)</code> gives <code>age</code>, <code>age:diabetes</code> gives <code>age</code> and <code>diabetes</code>.
@@ -450,12 +454,12 @@ patients: the mean over treated <code>i</code> and models <code>m</code> of <cod
 <span class="r-out co"><span class="r-pr">#&gt;</span>  logistic_regression_1           logistic_regression   0.412        0.271</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>        random_forest_1                 random_forest   0.363        0.160</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    gradient_boosting_1             gradient_boosting   0.351        0.285</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>              reference reference (glm, linear.logit)      NA        0.224</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>              reference reference (glm, linear.logit)      NA        0.239</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  smd_max_extended energy_distance ks_max treated_kept passed_quality_gate</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>             0.459          0.0953  0.357            1               FALSE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>             0.244          0.0555  0.141            1                TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>             0.377          0.0885  0.135            1               FALSE</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>             0.233          0.0806  0.335            1                TRUE</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>             0.239          0.0840  0.341            1                TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>  in_use</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    TRUE</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    TRUE</span>

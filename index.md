@@ -109,7 +109,7 @@ model set
 (`algorithms = c("logistic_regression", "random_forest", "gradient_boosting")`)
 also needs ‘randomForest’ and ‘gbm’. To build the vignettes as well, add
 `build_vignettes = TRUE`; they are also on the
-[website](https://mostafa-abbas.github.io/propsens).
+[website](https://mostafa-abbas.github.io/propsens/).
 
 **Run time.** With the default seven models,
 [`propensity_sensitivity()`](https://mostafa-abbas.github.io/propsens/reference/propensity_sensitivity.md)
@@ -263,7 +263,7 @@ validated check.
 ## Documentation
 
 The articles are on the website,
-<https://mostafa-abbas.github.io/propsens>:
+<https://mostafa-abbas.github.io/propsens/>:
 
 - [Getting
   started](https://mostafa-abbas.github.io/propsens/articles/getting-started.html):

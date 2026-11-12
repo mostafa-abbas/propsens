@@ -125,7 +125,7 @@
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes")</span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"mostafa-abbas/propsens"</span><span class="op">)</span></span></code></pre></div>
-<p>On Linux the packages ‘dbarts’ (BART) and ‘grf’ are compiled from source, which takes several minutes and needs a C++ compiler. The faster model set (<code>algorithms = c("logistic_regression", "random_forest", "gradient_boosting")</code>) also needs ‘randomForest’ and ‘gbm’. To build the vignettes as well, add <code>build_vignettes = TRUE</code>; they are also on the <a href="https://mostafa-abbas.github.io/propsens">website</a>.</p>
+<p>On Linux the packages ‘dbarts’ (BART) and ‘grf’ are compiled from source, which takes several minutes and needs a C++ compiler. The faster model set (<code>algorithms = c("logistic_regression", "random_forest", "gradient_boosting")</code>) also needs ‘randomForest’ and ‘gbm’. To build the vignettes as well, add <code>build_vignettes = TRUE</code>; they are also on the <a href="https://mostafa-abbas.github.io/propsens/">website</a>.</p>
 <p><strong>Run time.</strong> With the default seven models, <code><a href="reference/propensity_sensitivity.html">propensity_sensitivity()</a></code> takes about a minute for 614 patients and 7 covariates, and about 16 minutes for 5,735 patients and 50 covariates on one core; it grows with the number of patients and covariates. On Linux and macOS, <code>cores = 4</code> runs the models in parallel (on Windows the run is serial).</p>
 </div>
 <div class="section level2">
@@ -227,7 +227,7 @@ Report every row; the values depend on the seed as much as shown here.</code></p
 <div class="section level2">
 <h2 id="documentation">Documentation<a class="anchor" aria-label="anchor" href="#documentation"></a>
 </h2>
-<p>The articles are on the website, <a href="https://mostafa-abbas.github.io/propsens" class="uri">https://mostafa-abbas.github.io/propsens</a>:</p>
+<p>The articles are on the website, <a href="https://mostafa-abbas.github.io/propsens/" class="uri">https://mostafa-abbas.github.io/propsens/</a>:</p>
 <ul>
 <li>
 <a href="https://mostafa-abbas.github.io/propsens/articles/getting-started.html">Getting started</a>: install, run, read the output.</li>

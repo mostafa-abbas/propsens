@@ -425,14 +425,14 @@ summary(sensitivity)
 #>        random_forest_2                 random_forest   0.360        0.178
 #>    gradient_boosting_1             gradient_boosting   0.351        0.511
 #>    gradient_boosting_2             gradient_boosting   0.351        0.199
-#>              reference reference (glm, linear.logit)      NA        0.224
+#>              reference reference (glm, linear.logit)      NA        0.239
 #>  smd_max_extended energy_distance ks_max treated_kept passed_quality_gate
 #>             0.459          0.0953  0.357            1               FALSE
 #>             0.244          0.0555  0.141            1                TRUE
 #>             0.227          0.0634  0.135            1                TRUE
 #>             0.560          0.1950  0.232            1               FALSE
 #>             0.226          0.0569  0.141            1                TRUE
-#>             0.233          0.0806  0.335            1                TRUE
+#>             0.239          0.0840  0.341            1                TRUE
 #>  in_use
 #>   FALSE
 #>    TRUE

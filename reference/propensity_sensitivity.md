@@ -114,13 +114,18 @@ as.data.frame(x, row.names = NULL, optional = FALSE, ...)
 
   Data frame of covariates for the control spread and the balance
   statistics. Its rows must be the same patients in the same order as
-  `data`; when both have row names other than the default and they
-  differ, the function stops. `NULL` (default) uses the source columns
-  of the formula's right-hand side, from `data`, resolved with R's
-  formula rules: `.` means every other column and exclusions such as
-  `- death` are respected; `I(age^2)` gives `age`, `age:diabetes` gives
-  `age` and `diabetes`. Character columns are an error (convert them to
-  factors).
+  `data`. The row names are checked when `covariates` has row names
+  other than the default: if `data` has them too, they must be
+  identical; if `data` has the default row names (1 to n), those of
+  `covariates` must be "1" to "n" in order (a reordered copy of `data`
+  is an error), and other row names are an error. When `covariates` has
+  the default row names (for example a data frame built column by
+  column) the order cannot be checked and is your responsibility. `NULL`
+  (default) uses the source columns of the formula's right-hand side,
+  from `data`, resolved with R's formula rules: `.` means every other
+  column and exclusions such as `- death` are respected; `I(age^2)`
+  gives `age`, `age:diabetes` gives `age` and `diabetes`. Character
+  columns are an error (convert them to factors).
 
 - replace, m_order, caliper:
 
@@ -453,12 +458,12 @@ summary(sensitivity)
 #>  logistic_regression_1           logistic_regression   0.412        0.271
 #>        random_forest_1                 random_forest   0.363        0.160
 #>    gradient_boosting_1             gradient_boosting   0.351        0.285
-#>              reference reference (glm, linear.logit)      NA        0.224
+#>              reference reference (glm, linear.logit)      NA        0.239
 #>  smd_max_extended energy_distance ks_max treated_kept passed_quality_gate
 #>             0.459          0.0953  0.357            1               FALSE
 #>             0.244          0.0555  0.141            1                TRUE
 #>             0.377          0.0885  0.135            1               FALSE
-#>             0.233          0.0806  0.335            1                TRUE
+#>             0.239          0.0840  0.341            1                TRUE
 #>  in_use
 #>    TRUE
 #>    TRUE

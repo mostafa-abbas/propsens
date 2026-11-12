@@ -20,7 +20,7 @@ Useful links:
 
 - <https://github.com/mostafa-abbas/propsens>
 
-- <https://mostafa-abbas.github.io/propsens>
+- <https://mostafa-abbas.github.io/propsens/>
 
 - Report bugs at <https://github.com/mostafa-abbas/propsens/issues>
 
