@@ -19,7 +19,7 @@ table.
 
 ## propsens in one minute
 
-![Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, compare effects across models.](vignettes/img/one-minute.png)
+![Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, report effects under every kept model, if planned.](vignettes/img/one-minute.png)
 
 | | |
 |---|---|
@@ -101,6 +101,77 @@ and:
 The fold split and every tree model depend on `seed`, and on small data the kept models and the
 values can change noticeably from one seed to the next. Rerun with two or three values of `seed`
 and report all of them; `seed_sensitivity()` does this in one call.
+
+## A run where the gate keeps several algorithms (simulated data)
+
+These data are **simulated** with `simulate_example_data()` (Scenario 1: six normal covariates,
+logistic treatment model, 1,000 patients), so the output shows what the summaries look like when
+the gate keeps models from several algorithms. The output was computed once with
+`data-raw/simulated_default_output.R`.
+
+```r
+library(propsens)
+simulated <- simulate_example_data(n = 1000, scenario = "S1", seed = 1)
+propensity_sensitivity(treat ~ x1 + x2 + x3 + x4 + x5 + x6, data = simulated)
+```
+
+```
+Propensity model sensitivity
+1. Quality gate: 7 of 7 models kept (3 algorithms: logistic regression, BART,
+   GRF); log-loss within 5 % of the best; relative balance rule: max |SMD|
+   main terms at most 0.10 above the best model's and at most 0.25 (limit here
+   0.247).
+   Treated patients kept by each kept model: logistic_regression_1 100 %,
+     bart_1 100 %, bart_2 100 %, bart_3 100 %, grf_probability_1 100 %,
+     grf_probability_2 100 %, grf_probability_3 100 %
+2. Rank disagreement (primary; study mean over treated): 0.0588
+   Equal weight per algorithm (exploratory): 0.0678
+   Between/within-algorithm ratio (exploratory; median over treated): 4.12.
+     Disagreement between algorithms divided by disagreement between seeds of
+     the same algorithm; with three seeds per algorithm, seed noise alone
+     gives about 0.4.
+   Pair instability (exploratory; study mean over treated): 0.824 of a
+     possible 0.857 with 7 models. It is high whenever many untreated patients
+     have similar scores, even when the models agree.
+   Bootstrap rank instability of the logistic model (descriptive): 0.0534
+3. Balance spread (descriptive; range of max |SMD| main terms over the kept
+   models): 0.0755 (0.147 to 0.223)
+Control spread (descriptive; mean scaled over treated): 1.02; 1 = the partners
+   chosen by different models differ as much as a typical matched pair (scale:
+   the matches of logistic_regression_1)
+Matching: 1:1 nearest neighbour on the logit, without replacement, order
+   "largest", caliper none; target: ATT.
+```
+
+The same with `seed` 1, 2 and 3 (`seed_sensitivity()`), all three rows as they came:
+
+```r
+seed_sensitivity(treat ~ x1 + x2 + x3 + x4 + x5 + x6, seeds = 1:3, data = simulated)
+```
+
+```
+Propensity model sensitivity over 3 values of `seed`
+ seed models_kept models_fitted algorithms_kept
+    1           7             7               3
+    2           6             7               3
+    3           7             7               3
+                    kept_by_algorithm fallback rank_disagreement
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0588
+ logistic regression 1, BART 3, GRF 2    FALSE            0.0579
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0591
+ rank_disagreement_equal_weight pair_instability bootstrap_rank_instability
+                         0.0678            0.824                     0.0534
+                         0.0676            0.800                     0.0628
+                         0.0684            0.830                     0.0544
+
+Range over the seeds:
+                        summary minimum maximum
+              rank_disagreement  0.0579  0.0591
+ rank_disagreement_equal_weight  0.0676  0.0684
+               pair_instability  0.8000  0.8300
+     bootstrap_rank_instability  0.0534  0.0628
+Report every row; the values depend on the seed as much as shown here.
+```
 
 ## What a failed quality gate looks like
 

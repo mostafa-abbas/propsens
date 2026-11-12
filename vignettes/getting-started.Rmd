@@ -68,9 +68,9 @@ show_file("lalonde-default-print.txt")
 of them has a largest standardized mean difference above 0.25 after matching, so fewer than two
 models pass the gate. The function raises an R warning and the output opens with it: there is no
 set of similarly good models to compare, and every number describes all seven models. Your own
-model (the `glm` of the `matchit` object) is shown as kept, but it is judged on balance only and
-is an in-sample score, while the refitted logistic regression is cross-fitted and judged on both
-fit and balance; your own model is never one of the models compared. When the gate keeps none of
+model (the `glm` of the `matchit` object) is within the balance limit, but it is judged on
+balance only and is an in-sample score, while the refitted logistic regression is cross-fitted and
+judged on both fit and balance; your own model is never one of the models compared. When the gate keeps none of
 the refitted models, as here, the next step is to revisit the matching design (covariates,
 caliper, replacement), not to read the summaries.
 
@@ -87,6 +87,32 @@ show_file("lalonde-default-seeds.txt")
 With `seed = 1` every model is used (fallback); with seeds 2 and 3 the gate keeps only BART fits,
 so rank disagreement then measures only BART's seed noise (and the function warns). None of the
 three seeds gives a kept set from two or more algorithms. Report every row.
+
+## A simulated example where the gate keeps several algorithms
+
+On lalonde none of the three seeds gave a kept set from two or more algorithms. The data below
+are **simulated** with `simulate_example_data()` (Scenario 1: six normal covariates, a logistic
+treatment model, 1,000 patients), to show the output when the gate keeps models from several
+algorithms. It was computed once with `data-raw/simulated_default_output.R`:
+
+```{r simulated, eval = FALSE}
+simulated <- simulate_example_data(n = 1000, scenario = "S1", seed = 1)
+propensity_sensitivity(treat ~ x1 + x2 + x3 + x4 + x5 + x6, data = simulated)
+```
+
+```{r simulated-output, echo = FALSE, comment = ""}
+show_file("simulated-default-print.txt")
+```
+
+```{r simulated-seeds, eval = FALSE}
+seed_sensitivity(treat ~ x1 + x2 + x3 + x4 + x5 + x6, seeds = 1:3, data = simulated)
+```
+
+```{r simulated-seeds-output, echo = FALSE, comment = ""}
+show_file("simulated-default-seeds.txt")
+```
+
+All three seeds keep models from three algorithms; every row is reported.
 
 ## The printed lines, on a faster run
 

@@ -284,10 +284,11 @@ save_figure(figure_3, "rhc-ranks.png", 4.2)
 # Figure 4: odds ratio of death within 30 days in each kept model's matched pairs.
 kept <- models[models$model_id %in% used, ]
 kept$label <- factor(model_label(kept$model_id), levels = rev(model_label(kept$model_id)))
-balance_labels <- c("Largest |SMD| after matching at most 0.10 (two decimals)",
+# The unrounded value is compared with 0.10, as the gate's fixed rule would.
+balance_labels <- c("Largest |SMD| after matching at most 0.10",
                     "Largest |SMD| above 0.10 (kept by the relative rule of the gate)")
-kept$balance <- factor(ifelse(round(kept$smd_max_main, 2) <= 0.10, balance_labels[1],
-                              balance_labels[2]), levels = balance_labels)
+kept$balance <- factor(ifelse(kept$smd_max_main <= 0.10, balance_labels[1], balance_labels[2]),
+                       levels = balance_labels)
 figure_4 <- ggplot(kept, aes(odds_ratio, label, colour = balance, shape = balance)) +
   geom_vline(xintercept = 1, colour = okabe[["grey"]]) +
   geom_errorbar(aes(xmin = conf_low, xmax = conf_high), width = 0.2, orientation = "y") +

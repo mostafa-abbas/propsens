@@ -43,7 +43,8 @@ as a description of all models, not of a kept set.
 Control spread (descriptive; mean scaled over treated): 1.24; 1 = the partners
    chosen by different models differ as much as a typical matched pair (scale:
    the matches of logistic_regression_1)
-Your own model (glm, linear.logit): kept by the gate (its balance is within
-   the limit); mean absolute rank difference from the models in use: 0.0903
+Your own model (glm, linear.logit): within the balance limit (judged on
+   balance only; it is not one of the compared models); mean absolute rank
+   difference from the models in use: 0.0903
 Matching: 1:1 nearest neighbour on the logit, with replacement, order
    "largest", caliper none; target: ATT.

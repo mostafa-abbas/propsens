@@ -22,7 +22,7 @@ two_decimals <- function(x) sprintf("%.2f", x)
 
 ## propsens in one minute
 
-![propsens in one minute.](img/one-minute.png){width=100% alt="Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, compare effects across models."}
+![propsens in one minute.](img/one-minute.png){width=100% alt="Four panels joined by arrows under the heading propsens in one minute. You give it: patient characteristics and treatment, no outcomes. It does: three kinds of model, a barrier for the quality gate, and matched pairs. You get: kept models, rank disagreement, pair instability, and a warning if fewer than two pass. You use it to: report next to balance, check your design, report effects under every kept model, if planned."}
 
 | | |
 |---|---|
@@ -51,7 +51,7 @@ job about as well. propsens asks:
 > **How much does a matched design depend on which of several similarly good propensity models
 > is used?**
 
-![Each similarly good model can lead to a different partner.](img/glance-question.png){width=100% alt="A treated patient on the left and three propensity models in the middle (logistic regression, BART and GRF). Each model leads to a different untreated partner on the right (partners A, B and C). Heading: Would another equally good model pick a different partner?"}
+![Each similarly good model can lead to a different partner.](img/glance-question.png){width=100% alt="A treated patient on the left and three propensity models in the middle (logistic regression, BART and GRF). Each model leads to a different untreated partner on the right (partners A, B and C). Heading: How much does the design depend on the model?"}
 
 It answers this before anyone looks at the outcomes, so it belongs in the design stage of a
 study, next to the usual table that compares the matched groups.

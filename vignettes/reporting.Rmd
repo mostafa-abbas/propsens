@@ -54,97 +54,33 @@ pair instability (1 minus its mean over treated patients across the kept models;
 Values near the floor (1 / number of kept models) are expected when untreated patients are dense,
 even when the models agree; report pair instability next to rank disagreement, never alone.
 
-## What to write in Methods
+## What to write in Methods and Results
 
-The sentence below is built from the result object: the model set, the gate and how many models
-it kept (by algorithm), the matching settings, the share of treated patients kept and the seed.
+`methods_text()` builds both paragraphs from the result: the model set, the gate and how many
+models it kept (by algorithm), the matching settings, the share of treated patients kept, the
+seed and the main summaries. After a fallback it says that all models were used. Edit the
+sentences to fit your paper.
 
-```{r methods-sentence, echo = FALSE, results = "asis"}
-settings <- sensitivity$settings
-models <- sensitivity$models[!sensitivity$models$is_reference, ]
-kept <- models[models$in_use, ]
-fallback <- sensitivity$quality_gate_left_fewer_than_two_models
-algorithm_names <- c(logistic_regression = "logistic regression",
-                     bart = "Bayesian additive regression trees",
-                     grf_probability = "a generalized random forest",
-                     random_forest = "a random forest", gradient_boosting = "gradient boosting")
-fitted_algorithms <- unique(models$algorithm)
-fitted_text <- paste(algorithm_names[fitted_algorithms], collapse = ", ")
-count_by_algorithm <- table(factor(kept$algorithm, levels = unique(kept$algorithm)))
-kept_text <- paste0(as.integer(count_by_algorithm), " ",
-                    algorithm_names[names(count_by_algorithm)], collapse = ", ")
-smd_words <- "their largest post-match standardized mean difference on main terms"
-balance_text <- switch(
-  settings$balance_rule,
-  relative = sprintf("%s was within %.2f of the best model's and at most %.2f", smd_words,
-                     settings$balance_margin, settings$balance_cap),
-  relative_only = sprintf("%s was within %.2f of the best model's", smd_words,
-                          settings$balance_margin),
-  absolute = sprintf("%s was at most %.2f", smd_words, settings$balance_threshold)
-)
-caliper_text <- if (is.null(settings$caliper_sd)) "" else
-  sprintf(" with a caliper of %.2g standard deviations of the logit", settings$caliper_sd)
-kept_share <- range(kept$treated_kept)
-share_text <- if (all(kept_share >= 1)) "all treated patients were matched" else
-  sprintf("%.0f to %.0f %% of treated patients were matched", 100 * kept_share[1],
-          100 * kept_share[2])
-gate_result <- if (fallback) {
-  sprintf(paste("fewer than two of the %d models met these criteria, so all models were",
-                "used and the summaries describe all of them"), nrow(models))
-} else {
-  sprintf("%d of %d models were kept (%s)", nrow(kept), nrow(models), kept_text)
-}
-cat("> We described the sensitivity of the matched design to the propensity model with the R",
-    sprintf("package propsens (version %s).", as.character(utils::packageVersion("propsens"))),
-    paste0(toupper(substring(fitted_text, 1, 1)), substring(fitted_text, 2)),
-    sprintf("(%d seeds for each tree method; %d models; %d-fold cross-fitted scores; seed %d)",
-            length(settings$seeds), nrow(models), settings$folds, settings$seed),
-    sprintf("were each used for 1:1 nearest-neighbour matching %s replacement%s.",
-            if (settings$replace) "with" else "without", caliper_text),
-    sprintf(paste("Models were kept if their cross-fitted log-loss was within %.0f %% of the",
-                  "best model's and %s; %s, and %s."),
-            100 * settings$quality_tolerance, balance_text, gate_result, share_text),
-    "For the kept models we report the mean rank disagreement over treated patients, the",
-    "bootstrap rank instability of the logistic model, and the range of the largest",
-    "standardized mean difference on main terms. No outcome data were used. These summaries",
-    "are descriptive; they have not been validated as predictors of bias.\n")
+```{r methods-text}
+text <- methods_text(sensitivity)
+```
+
+**Methods:**
+
+```{r methods-show, echo = FALSE, results = "asis"}
+cat(">", text[["methods"]], "\n")
+```
+
+**Results:**
+
+```{r results-show, echo = FALSE, results = "asis"}
+cat(">", text[["results"]], "\n")
 ```
 
 If you reran the check with several values of `seed` (`seed_sensitivity()`), add: "The check
 was repeated with seeds 1, 2 and 3; all results are reported."
 
-## What to write in Results
-
-The numbers below come from the run above, not typed by hand:
-
-```{r results-sentence, echo = FALSE, results = "asis"}
-numbers <- sensitivity$summary$table
-value <- function(name) numbers$with_gate[numbers$quantity == name]
-n_kept <- length(sensitivity$summary$models_used)
-ratio <- value("median_between_within_ratio_treated")
-ratio_text <- if (is.na(ratio)) "not available (no kept algorithm had two seeds)" else
-  sprintf("%.1f", ratio)
-results_template <- paste(
-  "> Mean rank disagreement over treated patients was %.3f; the bootstrap rank instability of",
-  "the logistic model was %.3f. As exploratory summaries, pair instability was %.2f (of a",
-  "possible %.2f with %d models) and the median between/within-algorithm ratio was %s. The",
-  "largest standardized mean difference on main terms ranged from %.2f to %.2f across the %s."
-)
-cat(sprintf(results_template, value("mean_rank_disagreement_treated"),
-            value("bootstrap_rank_instability_treated"),
-            value("pair_instability_models_mean_treated"), 1 - 1 / n_kept, n_kept, ratio_text,
-            min(kept$smd_max_main), max(kept$smd_max_main),
-            if (fallback) "models" else "kept models"), "\n")
-if (sensitivity$kept_algorithms_count == 1 && n_kept >= 2) {
-  cat("> The kept models were seeds of a single algorithm, so these summaries describe seed",
-      "noise within that algorithm, not disagreement between algorithms.\n")
-}
-```
-
-If the quality gate left fewer than two models, add: "Fewer than two propensity models met the
-quality criteria (log-loss within 5 % of the best model's; largest standardized mean difference
-on main terms at most 0.10 above the best model's and at most 0.25), so all models were used."
-With `balance_rule = "absolute"`, describe that rule instead; `print()` states the rule in effect.
+The text states the balance rule in effect and, after a fallback, that all models were used.
 Call the criteria pre-specified only if you fixed them before running the check.
 
 ## If you judge the disagreement to be large
@@ -155,8 +91,9 @@ No thresholds exist yet, so this is a judgement you state and justify.
 2. Choose the design by balance, never by the outcome.
 3. Decide before looking at outcomes whether you will report the effect estimate under each kept
    model, and then report all of them.
-4. Look at where the disagreement is concentrated in the patients plot: does it sit in a region
-   of the covariates with few untreated patients? Describe this for the study as a whole.
+4. Look at the colour in the patients plot: is the disagreement concentrated among treated
+   patients whose logistic score lies outside the range of the untreated patients' scores
+   (outside the support, an overlap problem)? Describe this for the study as a whole.
 
 ## What the check does not do
 

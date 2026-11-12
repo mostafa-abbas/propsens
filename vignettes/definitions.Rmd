@@ -142,7 +142,7 @@ depends on how many seeds each algorithm contributes: with the same two algorith
 one of them pull `d(i)` towards that algorithm's seed noise. Values are comparable only between
 runs with the same model set and the same kept algorithms.
 
-**Rank averages over all treated patients.** Rank disagreement uses every treated patient,
+**Which treated patients each summary uses.** Rank disagreement uses every treated patient,
 matched or not; pair instability and control spread use the treated patients matched by at least
 one kept model.
 

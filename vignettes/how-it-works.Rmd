@@ -33,6 +33,11 @@ model_name <- function(id) {
 }
 lowest <- kept$model_id[which.min(kept$odds_ratio)]
 highest <- kept$model_id[which.max(kept$odds_ratio)]
+# The sentence on the fixed 0.10 rule (section 6) is written for this pattern; stop if the saved
+# results no longer show it. The gate compares the unrounded values with 0.10.
+above_fixed <- kept$model_id[kept$smd_max_main > 0.10]
+stopifnot(identical(above_fixed, c("logistic_regression_1", "bart_3")),
+          identical(setdiff(kept$model_id, above_fixed), c("bart_1", "bart_2")))
 extreme_names <- if (all(startsWith(c(lowest, highest), "bart_"))) {
   paste0("two BART fits that differ only in their random seed (", model_name(lowest), " and ",
          model_name(highest), ")")
@@ -71,7 +76,7 @@ untreated patient whose score is close, the treated patient's **matched partner*
 matched groups look alike at admission, a difference in their outcomes is less likely to reflect
 how ill they were to begin with.
 
-![Matching on the propensity score.](img/works-matching.png){width=100% alt="Patients lined up along an arrow labelled ‘Chance of treatment (propensity score)’. Treated patients wear orange, untreated patients grey. Arcs join each treated patient to the closest untreated patient; the two untreated patients with the lowest scores are left without a partner. Text below: Each treated patient is paired with the closest untreated patient."}
+![Matching on the propensity score.](img/works-matching.png){width=100% alt="Patients lined up along an arrow labelled 'Chance of treatment (propensity score)'. Treated patients wear orange, untreated patients grey. Arcs join each treated patient to the closest untreated patient; the two untreated patients with the lowest scores are left without a partner. Text below: Each treated patient is paired with the closest untreated patient."}
 
 The score is not observed; it has to be estimated with a statistical model, the **propensity
 model**. propsens fits several propensity models. Each model is then used to match the patients
@@ -117,7 +122,7 @@ is less accurate. Only disagreement among models a careful researcher would acce
 us something about the design. So before anything is measured, each of the seven models must
 pass two checks, the **quality gate**.
 
-![The quality gate: two checks, fit and balance.](img/works-gate.png){width=100% alt="Two wooden gates on a path. The first is labelled ‘Fits as well as the best’, the second ‘Balances as well as the best’. Three GRF figures stand at the start beside a sign ‘Not kept for this study’; logistic regression and three BART figures stand past both gates under a sign ‘Kept models’."}
+![The quality gate: two checks, fit and balance.](img/works-gate.png){width=100% alt="Two wooden gates on a path. The first is labelled 'Fits as well as the best', the second 'Balances as well as the best'. Three GRF figures stand at the start beside a sign 'Not kept for this study'; logistic regression and three BART figures stand past both gates under a sign 'Kept models'."}
 
 **Check 1: fit.** Fit is measured with the **log-loss**, a penalty for each patient that depends
 on the chance the model gave to what actually happened. A catheterized patient who was given a
@@ -219,7 +224,7 @@ had at least two different partners. This is expected when many untreated patien
 scores, and it does not by itself mean the matched groups differ; a different partner with the
 same characteristics is harmless. Pair instability depends on the number of kept models (its
 maximum is 1 minus 1 divided by the number of models) and on how dense the untreated patients
-are. The figure follows one typical patient.
+are. The figure follows one treated patient.
 
 ![One treated patient, four kept models, four different untreated partners.](rhc-partners.png){width=100% alt="One treated (catheterized) patient on the left, linked to the four kept models: logistic regression and BART seeds 1, 2 and 3. Each model places the patient at a slightly different percentile rank, between about 32 and 43, and pairs the patient with a different untreated patient, A to D."}
 
@@ -237,7 +242,7 @@ odds of death within 30 days compare between catheterized patients and their unt
 partners. An odds ratio of 1 means no difference; the **95 % confidence interval** is the range of
 values compatible with the data.
 
-![Odds ratios of death within 30 days across the four kept models.](rhc-effects.png){width=100% alt="Odds ratio of death within 30 days in the matched pairs of each of the four kept models, with 95 % confidence intervals: logistic regression and BART with seeds 1, 2 and 3. All four lie above 1, between about 1.27 and 1.38; the BART seed 3 estimate is marked as having a largest SMD slightly above 0.10."}
+![Odds ratios of death within 30 days across the four kept models.](rhc-effects.png){width=100% alt="Odds ratio of death within 30 days in the matched pairs of each of the four kept models, with 95 % confidence intervals: logistic regression and BART with seeds 1, 2 and 3. All four lie above 1, between about 1.27 and 1.38; logistic regression and BART seed 3 are marked as having a largest SMD above 0.10."}
 
 The odds ratio was `r odds_ratio("logistic_regression_1")` (95 % CI
 `r interval("logistic_regression_1")`) with logistic regression, and `r odds_ratio("bart_1")`
@@ -256,10 +261,12 @@ identical across kept models; it does not show how much of the difference is due
 to the seed, or to chance. A larger disagreement does not by itself mean a larger change in the
 estimate.
 
-The third BART model's largest SMD after matching
-(`r three(models$smd_max_main[models$model_id == "bart_3"])`) is above the conventional 0.10
-although it passes the relative rule of the gate; an analyst using the fixed 0.10 rule
-(`balance_rule = "absolute"`) would not keep it.
+Two of the four kept models, logistic regression
+(`r three(models$smd_max_main[models$model_id == "logistic_regression_1"])`) and the third BART
+model (`r three(models$smd_max_main[models$model_id == "bart_3"])`), have a largest SMD above
+the conventional 0.10 although they pass the relative rule; with the fixed 0.10 rule
+(`balance_rule = "absolute"`) only the first two BART fits would be kept, which are seeds of one
+algorithm.
 
 ## How the numbers were produced
 

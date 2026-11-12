@@ -1,0 +1,21 @@
+Propensity model sensitivity over 3 values of `seed`
+ seed models_kept models_fitted algorithms_kept
+    1           7             7               3
+    2           6             7               3
+    3           7             7               3
+                    kept_by_algorithm fallback rank_disagreement
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0588
+ logistic regression 1, BART 3, GRF 2    FALSE            0.0579
+ logistic regression 1, BART 3, GRF 3    FALSE            0.0591
+ rank_disagreement_equal_weight pair_instability bootstrap_rank_instability
+                         0.0678            0.824                     0.0534
+                         0.0676            0.800                     0.0628
+                         0.0684            0.830                     0.0544
+
+Range over the seeds:
+                        summary minimum maximum
+              rank_disagreement  0.0579  0.0591
+ rank_disagreement_equal_weight  0.0676  0.0684
+               pair_instability  0.8000  0.8300
+     bootstrap_rank_instability  0.0534  0.0628
+Report every row; the values depend on the seed as much as shown here.
